@@ -8,12 +8,23 @@
       name="description"
       content="PWA-каталог ресторана с корзиной, заказом, админ-режимом и редактируемым дизайном."
     />
-    <link rel="icon" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.svg" />
+    <link rel="icon" href="./favicon.svg" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.svg" />
     <title>Мангал | PWA каталог ресторана</title>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module">
+      import('./src/main.tsx').catch(() => {
+        const stylesheet = document.createElement('link');
+        stylesheet.rel = 'stylesheet';
+        stylesheet.href = './assets/index.css';
+        document.head.appendChild(stylesheet);
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = './assets/index.js';
+        document.body.appendChild(script);
+      });
+    </script>
   </body>
 </html>
