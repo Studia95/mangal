@@ -28,6 +28,7 @@ import {
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { categories as demoCategories, products as demoProducts, restaurant as demoRestaurant } from '../data/catalog';
 import type { Category, Product, Restaurant, ThemeSettings } from '../entities/models';
+import { DishEditorPage } from '../features/dish-editor/DishEditorPage';
 import {
   hasDrinkInCart,
   selectCartCount,
@@ -707,132 +708,6 @@ function LoginModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: ()
   );
 }
 
-function fileToDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
-function ProductEditor({
-  product,
-  categories,
-  onSave
-}: {
-  product: Product | null;
-  categories: Category[];
-  onSave: (product: Product) => void;
-}) {
-  const foodCategories = categories.filter((category) => category.kind !== 'space');
-  const [draft, setDraft] = useState<Product>(
-    product ?? {
-      id: `product-${Date.now()}`,
-      title: '',
-      price: 0,
-      description: '',
-      image_url: '',
-      ingredients: '',
-      weight: '',
-      spicy_level: 0,
-      serving: '',
-      is_popular: false,
-      is_new: false,
-      is_hit: false,
-      stock_count: 10,
-      category_id: foodCategories[0]?.id ?? 'chechen',
-      pair_ids: []
-    }
-  );
-
-  const updateDraft = (patch: Partial<Product>) => setDraft((current) => ({ ...current, ...patch }));
-
-  return (
-    <form
-      className="admin-form"
-      onSubmit={(event) => {
-        event.preventDefault();
-        onSave({ ...draft, title: draft.title.trim() || 'Новое блюдо' });
-      }}
-    >
-      <label className="photo-picker">
-        <span>{draft.image_url ? 'Заменить фото' : 'Добавить фото'}</span>
-        {draft.image_url && <img src={draft.image_url} alt="" />}
-        <input
-          type="file"
-          accept="image/*"
-          onChange={async (event) => {
-            const file = event.target.files?.[0];
-            if (file) {
-              updateDraft({ image_url: await fileToDataUrl(file) });
-            }
-          }}
-        />
-      </label>
-      <label>
-        Ссылка на фото
-        <input value={draft.image_url} onChange={(event) => updateDraft({ image_url: event.target.value })} placeholder="https://..." />
-      </label>
-      <label>
-        Название
-        <input value={draft.title} onChange={(event) => updateDraft({ title: event.target.value })} />
-      </label>
-      <label>
-        Цена
-        <input type="number" min={0} value={draft.price} onChange={(event) => updateDraft({ price: Number(event.target.value) })} />
-      </label>
-      <label>
-        Категория
-        <select value={draft.category_id} onChange={(event) => updateDraft({ category_id: event.target.value })}>
-          {foodCategories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Описание
-        <textarea value={draft.description} onChange={(event) => updateDraft({ description: event.target.value })} />
-      </label>
-      <label>
-        Состав
-        <input value={draft.ingredients} onChange={(event) => updateDraft({ ingredients: event.target.value })} />
-      </label>
-      <label>
-        Вес
-        <input value={draft.weight} onChange={(event) => updateDraft({ weight: event.target.value })} />
-      </label>
-      <label>
-        Подается с
-        <input value={draft.serving} onChange={(event) => updateDraft({ serving: event.target.value })} />
-      </label>
-      <label>
-        Остаток
-        <input type="number" min={0} value={draft.stock_count} onChange={(event) => updateDraft({ stock_count: Number(event.target.value) })} />
-      </label>
-      <div className="flag-row">
-        <label>
-          <input type="checkbox" checked={draft.is_popular} onChange={(event) => updateDraft({ is_popular: event.target.checked })} />
-          Популярное
-        </label>
-        <label>
-          <input type="checkbox" checked={draft.is_hit} onChange={(event) => updateDraft({ is_hit: event.target.checked })} />
-          Хит
-        </label>
-        <label>
-          <input type="checkbox" checked={draft.is_new} onChange={(event) => updateDraft({ is_new: event.target.checked })} />
-          Новинка
-        </label>
-      </div>
-      <button className="primary-wide" type="submit">
-        Сохранить карточку
-      </button>
-    </form>
-  );
-}
-
 function AdminPanel() {
   const isAdmin = useAuthStore((state) => state.isAdmin);
   const logout = useAuthStore((state) => state.logout);
@@ -871,7 +746,9 @@ function DesignEditor({
   onSaveProduct,
   onCloseProduct,
   onUpdateRestaurant,
-  onImport
+  onImport,
+  cartCount,
+  onNavigate
 }: {
   editingProduct: Product | null;
   categories: Category[];
@@ -881,6 +758,8 @@ function DesignEditor({
   onCloseProduct: () => void;
   onUpdateRestaurant: (patch: Partial<Restaurant>) => void;
   onImport: (payload: { restaurant?: Restaurant; products?: Product[]; theme?: ThemeSettings }) => void;
+  cartCount: number;
+  onNavigate: (target: 'home' | 'catalog' | 'drinks' | 'cabins' | 'profile') => void;
 }) {
   const editor = useAdminStore((state) => state.editor);
   const setEditor = useAdminStore((state) => state.setEditor);
@@ -893,33 +772,41 @@ function DesignEditor({
 
   return (
     <div className="modal-backdrop">
-      <section className="design-editor">
-        <div className="editor-head">
-          <h2>
-            {editor === 'design'
-              ? 'Редактор дизайна'
-              : editor === 'settings'
-                ? 'Настройки'
-                : editor === 'dish'
-                  ? editingProduct
-                    ? 'Редактировать блюдо'
-                    : 'Добавить блюдо'
-                  : 'Категории'}
-          </h2>
-          <button
-            className="icon-button"
-            type="button"
-            onClick={() => {
+      <section className={editor === 'dish' ? 'design-editor design-editor--dish' : 'design-editor'}>
+        {editor === 'dish' ? (
+          <DishEditorPage
+            product={editingProduct}
+            categories={categories}
+            cartCount={cartCount}
+            onBack={() => {
               onCloseProduct();
               setEditor(null);
             }}
-          >
-            <ArrowLeft />
-          </button>
-        </div>
-        {editor === 'dish' ? (
-          <ProductEditor product={editingProduct} categories={categories} onSave={onSaveProduct} />
-        ) : editor === 'design' ? (
+            onSave={onSaveProduct}
+            onNavigate={(target) => {
+              onNavigate(target);
+              if (target !== 'profile') {
+                onCloseProduct();
+                setEditor(null);
+              }
+            }}
+          />
+        ) : (
+          <>
+            <div className="editor-head">
+              <h2>{editor === 'design' ? 'Редактор дизайна' : editor === 'settings' ? 'Настройки' : 'Категории'}</h2>
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => {
+                  onCloseProduct();
+                  setEditor(null);
+                }}
+              >
+                <ArrowLeft />
+              </button>
+            </div>
+            {editor === 'design' ? (
           <div className="theme-form">
             {[
               ['background_color', 'Фон'],
@@ -1026,6 +913,8 @@ function DesignEditor({
             </ul>
           </div>
         )}
+          </>
+        )}
       </section>
     </div>
   );
@@ -1046,6 +935,7 @@ function AppContent() {
   const [localCategories, setLocalCategories] = useState<Category[]>(demoCategories);
   const [localRestaurant, setLocalRestaurant] = useState<Restaurant>(demoRestaurant);
   const items = useCartStore((state) => state.items);
+  const cartCount = selectCartCount(items);
 
   useEffect(() => {
     if (data?.theme) {
@@ -1190,6 +1080,25 @@ function AppContent() {
           }
           if (payload.theme) {
             updateTheme(payload.theme);
+          }
+        }}
+        cartCount={cartCount}
+        onNavigate={(target) => {
+          if (target === 'home') {
+            setScreen('home');
+          }
+          if (target === 'catalog') {
+            setCatalogCategory('all');
+            setScreen('catalog');
+          }
+          if (target === 'drinks') {
+            setScreen('drinks');
+          }
+          if (target === 'cabins') {
+            setScreen('checkout');
+          }
+          if (target === 'profile') {
+            setAdminEditor('settings');
           }
         }}
       />
