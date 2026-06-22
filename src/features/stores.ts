@@ -74,7 +74,7 @@ export const useCartStore = create<CartStore>((set) => ({
 export const useAuthStore = create<AuthStore>((set) => ({
   isAdmin: false,
   login: (email, password) => {
-    const success = email.trim().length > 3 && password.trim().length >= 4;
+    const success = email.trim().toLowerCase() === 'admin' && password.trim() === '1234';
     if (success) {
       set({ isAdmin: true });
     }

@@ -10,6 +10,7 @@ export const restaurant: Restaurant = {
   logo_url: '',
   banner_url: image('photo-1555396273-367ea4eb4db5', 'restaurant'),
   whatsapp: '79990000000',
+  instagram_url: 'https://instagram.com/',
   address: 'ул. Центральная, 12'
 };
 

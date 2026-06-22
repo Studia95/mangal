@@ -10,6 +10,7 @@ import {
   Edit3,
   Flame,
   Home,
+  Instagram,
   LogOut,
   Minus,
   Package,
@@ -25,7 +26,8 @@ import {
   Users
 } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import type { Category, Product, ThemeSettings } from '../entities/models';
+import { categories as demoCategories, products as demoProducts, restaurant as demoRestaurant } from '../data/catalog';
+import type { Category, Product, Restaurant, ThemeSettings } from '../entities/models';
 import {
   hasDrinkInCart,
   selectCartCount,
@@ -43,6 +45,7 @@ const queryClient = new QueryClient();
 const formatPrice = (value: number) => `${new Intl.NumberFormat('ru-RU').format(value)} ₽`;
 
 type Screen = 'home' | 'catalog' | 'drinks' | 'product' | 'checkout';
+type ProductFlag = 'is_popular' | 'is_hit' | 'is_new';
 
 const iconMap = {
   pot: ChefHat,
@@ -66,6 +69,11 @@ function applyTheme(theme: ThemeSettings) {
     '--accent': theme.accent_color,
     '--accent-2': theme.accent_secondary,
     '--button-radius': `${theme.button_radius}px`,
+    '--primary-bg':
+      theme.button_style === 'filled'
+        ? `linear-gradient(135deg, ${theme.accent_secondary}, ${theme.accent_color})`
+        : 'transparent',
+    '--primary-text': theme.button_style === 'filled' ? '#1b1408' : theme.accent_secondary,
     backgroundImage:
       theme.background_type === 'image' && theme.background_image_url
         ? `linear-gradient(rgba(5, 6, 7, 0.78), rgba(5, 6, 7, 0.92)), url(${theme.background_image_url})`
@@ -159,11 +167,17 @@ function CategoryPills({
 function ProductTile({
   product,
   variant = 'compact',
-  onOpen
+  onOpen,
+  onEdit,
+  onDelete,
+  onToggle
 }: {
   product: Product;
   variant?: 'compact' | 'large' | 'drink';
   onOpen: (product: Product) => void;
+  onEdit?: (product: Product) => void;
+  onDelete?: (productId: string) => void;
+  onToggle?: (productId: string, key: 'is_popular' | 'is_hit' | 'is_new') => void;
 }) {
   const add = useCartStore((state) => state.add);
   const isAdmin = useAuthStore((state) => state.isAdmin);
@@ -195,16 +209,29 @@ function ProductTile({
       </div>
       {isAdmin && (
         <div className="admin-card-tools" onClick={(event) => event.stopPropagation()}>
-          <button type="button" aria-label="Редактировать">
+          <button type="button" aria-label="Редактировать" onClick={() => onEdit?.(product)}>
             <Edit3 />
           </button>
-          <button className={product.is_popular ? 'is-on' : ''} type="button" aria-label="Популярное">
+          <button
+            className={product.is_popular ? 'is-on' : ''}
+            type="button"
+            aria-label="Популярное"
+            onClick={() => onToggle?.(product.id, 'is_popular')}
+          >
             <Star />
           </button>
-          <button className={product.is_hit ? 'is-on' : ''} type="button" aria-label="Хит">
+          <button
+            className={product.is_hit ? 'is-on' : ''}
+            type="button"
+            aria-label="Хит"
+            onClick={() => onToggle?.(product.id, 'is_hit')}
+          >
             <Flame />
           </button>
-          <button type="button" aria-label="Удалить">
+          <button type="button" aria-label="Новинка" onClick={() => onToggle?.(product.id, 'is_new')}>
+            <Plus />
+          </button>
+          <button type="button" aria-label="Удалить" onClick={() => onDelete?.(product.id)}>
             <Trash2 />
           </button>
         </div>
@@ -245,13 +272,19 @@ function HomeScreen({
   products,
   onOpenCatalog,
   onOpenDrinks,
-  onOpenProduct
+  onOpenProduct,
+  onEditProduct,
+  onDeleteProduct,
+  onToggleProduct
 }: {
   categories: Category[];
   products: Product[];
   onOpenCatalog: (categoryId?: string) => void;
   onOpenDrinks: () => void;
   onOpenProduct: (product: Product) => void;
+  onEditProduct: (product: Product) => void;
+  onDeleteProduct: (productId: string) => void;
+  onToggleProduct: (productId: string, key: 'is_popular' | 'is_hit' | 'is_new') => void;
 }) {
   const [active, setActive] = useState('chechen');
   const featuredCategories = categories.filter((category) => ['fastfood', 'chechen', 'pizza', 'lemonades', 'fridge', 'cabins'].includes(category.id));
@@ -307,7 +340,14 @@ function HomeScreen({
 
       <section className="popular-grid">
         {popular.map((product) => (
-          <ProductTile key={product.id} product={product} onOpen={onOpenProduct} />
+          <ProductTile
+            key={product.id}
+            product={product}
+            onOpen={onOpenProduct}
+            onEdit={onEditProduct}
+            onDelete={onDeleteProduct}
+            onToggle={onToggleProduct}
+          />
         ))}
       </section>
     </main>
@@ -318,12 +358,18 @@ function CatalogScreen({
   categories,
   products,
   initialCategory,
-  onOpenProduct
+  onOpenProduct,
+  onEditProduct,
+  onDeleteProduct,
+  onToggleProduct
 }: {
   categories: Category[];
   products: Product[];
   initialCategory: string;
   onOpenProduct: (product: Product) => void;
+  onEditProduct: (product: Product) => void;
+  onDeleteProduct: (productId: string) => void;
+  onToggleProduct: (productId: string, key: 'is_popular' | 'is_hit' | 'is_new') => void;
 }) {
   const [active, setActive] = useState(initialCategory);
   const [query, setQuery] = useState('');
@@ -360,14 +406,34 @@ function CatalogScreen({
       </div>
       <section className="catalog-grid">
         {filtered.map((product) => (
-          <ProductTile key={product.id} product={product} variant="large" onOpen={onOpenProduct} />
+          <ProductTile
+            key={product.id}
+            product={product}
+            variant="large"
+            onOpen={onOpenProduct}
+            onEdit={onEditProduct}
+            onDelete={onDeleteProduct}
+            onToggle={onToggleProduct}
+          />
         ))}
       </section>
     </main>
   );
 }
 
-function DrinksScreen({ products, onOpenProduct }: { products: Product[]; onOpenProduct: (product: Product) => void }) {
+function DrinksScreen({
+  products,
+  onOpenProduct,
+  onEditProduct,
+  onDeleteProduct,
+  onToggleProduct
+}: {
+  products: Product[];
+  onOpenProduct: (product: Product) => void;
+  onEditProduct: (product: Product) => void;
+  onDeleteProduct: (productId: string) => void;
+  onToggleProduct: (productId: string, key: 'is_popular' | 'is_hit' | 'is_new') => void;
+}) {
   const [active, setActive] = useState('Все');
   const groups = ['Все', ...Array.from(new Set(products.filter((product) => product.drink_type).map((product) => product.drink_type as string)))];
   const drinks = products.filter((product) => product.drink_type && (active === 'Все' || product.drink_type === active));
@@ -383,7 +449,15 @@ function DrinksScreen({ products, onOpenProduct }: { products: Product[]; onOpen
       </div>
       <section className="drink-grid">
         {drinks.map((product) => (
-          <ProductTile key={product.id} product={product} variant="drink" onOpen={onOpenProduct} />
+          <ProductTile
+            key={product.id}
+            product={product}
+            variant="drink"
+            onOpen={onOpenProduct}
+            onEdit={onEditProduct}
+            onDelete={onDeleteProduct}
+            onToggle={onToggleProduct}
+          />
         ))}
       </section>
     </main>
@@ -456,7 +530,7 @@ function ProductScreen({ product, products }: { product: Product; products: Prod
   );
 }
 
-function CheckoutScreen({ products }: { products: Product[] }) {
+function CheckoutScreen({ products, restaurant }: { products: Product[]; restaurant: Restaurant }) {
   const { mode, cabinId, date, time, guests, setOrder } = useOrderStore();
   const items = useCartStore((state) => state.items);
   const total = selectCartTotal(items);
@@ -521,10 +595,14 @@ function CheckoutScreen({ products }: { products: Product[] }) {
             </span>
           </label>
         </div>
-        <a className="primary-wide" href={`https://wa.me/79990000000?text=${orderText}`} target="_blank" rel="noreferrer">
+        <a className="primary-wide" href={`https://wa.me/${restaurant.whatsapp}?text=${orderText}`} target="_blank" rel="noreferrer">
           Забронировать
         </a>
       </section>
+
+      <a className="instagram-link" href={restaurant.instagram_url} target="_blank" rel="noreferrer">
+        <Instagram /> Instagram ресторана
+      </a>
 
       {!hasDrinkInCart(items) && (
         <section className="forgot-inline">
@@ -589,7 +667,7 @@ function DrinkReminder({
   );
 }
 
-function LoginModal({ onClose }: { onClose: () => void }) {
+function LoginModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const login = useAuthStore((state) => state.login);
   const [error, setError] = useState('');
 
@@ -598,10 +676,11 @@ function LoginModal({ onClose }: { onClose: () => void }) {
     const formData = new FormData(event.currentTarget);
     const success = login(String(formData.get('email')), String(formData.get('password')));
     if (success) {
+      onSuccess();
       onClose();
       return;
     }
-    setError('Введите email и пароль от 4 символов.');
+    setError('Логин: admin, пароль: 1234.');
   };
 
   return (
@@ -609,12 +688,12 @@ function LoginModal({ onClose }: { onClose: () => void }) {
       <form className="login-modal" onSubmit={submit}>
         <Logo compact />
         <label>
-          Email
-          <input name="email" type="email" placeholder="admin@restaurant.ru" required />
+          Логин
+          <input name="email" placeholder="admin" autoCapitalize="none" required />
         </label>
         <label>
           Пароль
-          <input name="password" type="password" placeholder="••••••••" required />
+          <input name="password" type="password" placeholder="1234" required />
         </label>
         {error && <p>{error}</p>}
         <button className="primary-wide" type="submit">
@@ -625,6 +704,132 @@ function LoginModal({ onClose }: { onClose: () => void }) {
         </button>
       </form>
     </div>
+  );
+}
+
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function ProductEditor({
+  product,
+  categories,
+  onSave
+}: {
+  product: Product | null;
+  categories: Category[];
+  onSave: (product: Product) => void;
+}) {
+  const foodCategories = categories.filter((category) => category.kind !== 'space');
+  const [draft, setDraft] = useState<Product>(
+    product ?? {
+      id: `product-${Date.now()}`,
+      title: '',
+      price: 0,
+      description: '',
+      image_url: '',
+      ingredients: '',
+      weight: '',
+      spicy_level: 0,
+      serving: '',
+      is_popular: false,
+      is_new: false,
+      is_hit: false,
+      stock_count: 10,
+      category_id: foodCategories[0]?.id ?? 'chechen',
+      pair_ids: []
+    }
+  );
+
+  const updateDraft = (patch: Partial<Product>) => setDraft((current) => ({ ...current, ...patch }));
+
+  return (
+    <form
+      className="admin-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSave({ ...draft, title: draft.title.trim() || 'Новое блюдо' });
+      }}
+    >
+      <label className="photo-picker">
+        <span>{draft.image_url ? 'Заменить фото' : 'Добавить фото'}</span>
+        {draft.image_url && <img src={draft.image_url} alt="" />}
+        <input
+          type="file"
+          accept="image/*"
+          onChange={async (event) => {
+            const file = event.target.files?.[0];
+            if (file) {
+              updateDraft({ image_url: await fileToDataUrl(file) });
+            }
+          }}
+        />
+      </label>
+      <label>
+        Ссылка на фото
+        <input value={draft.image_url} onChange={(event) => updateDraft({ image_url: event.target.value })} placeholder="https://..." />
+      </label>
+      <label>
+        Название
+        <input value={draft.title} onChange={(event) => updateDraft({ title: event.target.value })} />
+      </label>
+      <label>
+        Цена
+        <input type="number" min={0} value={draft.price} onChange={(event) => updateDraft({ price: Number(event.target.value) })} />
+      </label>
+      <label>
+        Категория
+        <select value={draft.category_id} onChange={(event) => updateDraft({ category_id: event.target.value })}>
+          {foodCategories.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Описание
+        <textarea value={draft.description} onChange={(event) => updateDraft({ description: event.target.value })} />
+      </label>
+      <label>
+        Состав
+        <input value={draft.ingredients} onChange={(event) => updateDraft({ ingredients: event.target.value })} />
+      </label>
+      <label>
+        Вес
+        <input value={draft.weight} onChange={(event) => updateDraft({ weight: event.target.value })} />
+      </label>
+      <label>
+        Подается с
+        <input value={draft.serving} onChange={(event) => updateDraft({ serving: event.target.value })} />
+      </label>
+      <label>
+        Остаток
+        <input type="number" min={0} value={draft.stock_count} onChange={(event) => updateDraft({ stock_count: Number(event.target.value) })} />
+      </label>
+      <div className="flag-row">
+        <label>
+          <input type="checkbox" checked={draft.is_popular} onChange={(event) => updateDraft({ is_popular: event.target.checked })} />
+          Популярное
+        </label>
+        <label>
+          <input type="checkbox" checked={draft.is_hit} onChange={(event) => updateDraft({ is_hit: event.target.checked })} />
+          Хит
+        </label>
+        <label>
+          <input type="checkbox" checked={draft.is_new} onChange={(event) => updateDraft({ is_new: event.target.checked })} />
+          Новинка
+        </label>
+      </div>
+      <button className="primary-wide" type="submit">
+        Сохранить карточку
+      </button>
+    </form>
   );
 }
 
@@ -658,7 +863,25 @@ function AdminPanel() {
   );
 }
 
-function DesignEditor() {
+function DesignEditor({
+  editingProduct,
+  categories,
+  products,
+  restaurant,
+  onSaveProduct,
+  onCloseProduct,
+  onUpdateRestaurant,
+  onImport
+}: {
+  editingProduct: Product | null;
+  categories: Category[];
+  products: Product[];
+  restaurant: Restaurant;
+  onSaveProduct: (product: Product) => void;
+  onCloseProduct: () => void;
+  onUpdateRestaurant: (patch: Partial<Restaurant>) => void;
+  onImport: (payload: { restaurant?: Restaurant; products?: Product[]; theme?: ThemeSettings }) => void;
+}) {
   const editor = useAdminStore((state) => state.editor);
   const setEditor = useAdminStore((state) => state.setEditor);
   const theme = useThemeStore((state) => state.theme);
@@ -672,12 +895,31 @@ function DesignEditor() {
     <div className="modal-backdrop">
       <section className="design-editor">
         <div className="editor-head">
-          <h2>{editor === 'design' ? 'Редактор дизайна' : 'Админ-раздел'}</h2>
-          <button className="icon-button" type="button" onClick={() => setEditor(null)}>
+          <h2>
+            {editor === 'design'
+              ? 'Редактор дизайна'
+              : editor === 'settings'
+                ? 'Настройки'
+                : editor === 'dish'
+                  ? editingProduct
+                    ? 'Редактировать блюдо'
+                    : 'Добавить блюдо'
+                  : 'Категории'}
+          </h2>
+          <button
+            className="icon-button"
+            type="button"
+            onClick={() => {
+              onCloseProduct();
+              setEditor(null);
+            }}
+          >
             <ArrowLeft />
           </button>
         </div>
-        {editor === 'design' ? (
+        {editor === 'dish' ? (
+          <ProductEditor product={editingProduct} categories={categories} onSave={onSaveProduct} />
+        ) : editor === 'design' ? (
           <div className="theme-form">
             {[
               ['background_color', 'Фон'],
@@ -708,11 +950,81 @@ function DesignEditor() {
               Фон-картинка
               <input value={theme.background_image_url} onChange={(event) => updateTheme({ background_image_url: event.target.value, background_type: event.target.value ? 'image' : 'color' })} placeholder="https://..." />
             </label>
+            <label>
+              Стиль кнопок
+              <select value={theme.button_style} onChange={(event) => updateTheme({ button_style: event.target.value as ThemeSettings['button_style'] })}>
+                <option value="filled">Заливка</option>
+                <option value="outline">Обводка</option>
+              </select>
+            </label>
+          </div>
+        ) : editor === 'settings' ? (
+          <div className="theme-form">
+            <label>
+              Название ресторана
+              <input value={restaurant.name} onChange={(event) => onUpdateRestaurant({ name: event.target.value })} />
+            </label>
+            <label>
+              WhatsApp для заказов
+              <input value={restaurant.whatsapp} onChange={(event) => onUpdateRestaurant({ whatsapp: event.target.value.replace(/\D/g, '') })} placeholder="79990000000" />
+            </label>
+            <label>
+              Instagram
+              <input value={restaurant.instagram_url} onChange={(event) => onUpdateRestaurant({ instagram_url: event.target.value })} placeholder="https://instagram.com/..." />
+            </label>
+            <label>
+              Адрес
+              <input value={restaurant.address} onChange={(event) => onUpdateRestaurant({ address: event.target.value })} />
+            </label>
+            <div className="import-export">
+              <button
+                className="ghost-wide"
+                type="button"
+                onClick={() => {
+                  const blob = new Blob([JSON.stringify({ restaurant, products, theme }, null, 2)], {
+                    type: 'application/json'
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = 'mangal-catalog-export.json';
+                  link.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                Экспорт JSON
+              </button>
+              <label className="ghost-wide import-file">
+                Импорт JSON
+                <input
+                  type="file"
+                  accept="application/json"
+                  onChange={async (event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) {
+                      return;
+                    }
+                    const payload = JSON.parse(await file.text()) as {
+                      restaurant?: Restaurant;
+                      products?: Product[];
+                      theme?: ThemeSettings;
+                    };
+                    onImport(payload);
+                    event.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
           </div>
         ) : (
-          <p className="admin-placeholder">
-            Раздел уже подключен к админ-режиму. Следующий шаг - CRUD формы и загрузка изображений в bucket images.
-          </p>
+          <div className="admin-placeholder">
+            <p>Категории готовы к Supabase-таблице category. Сейчас они используются как шаблон для карточек и фильтров.</p>
+            <ul>
+              {categories.map((category) => (
+                <li key={category.id}>{category.name}</li>
+              ))}
+            </ul>
+          </div>
         )}
       </section>
     </div>
@@ -723,23 +1035,38 @@ function AppContent() {
   const { data } = useQuery({ queryKey: ['catalog'], queryFn: loadCatalog });
   const themeStore = useThemeStore((state) => state.theme);
   const updateTheme = useThemeStore((state) => state.updateTheme);
+  const setAdminEditor = useAdminStore((state) => state.setEditor);
   const [screen, setScreen] = useState<Screen>('home');
   const [catalogCategory, setCatalogCategory] = useState('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showLogin, setShowLogin] = useState(false);
   const [showReminder, setShowReminder] = useState(false);
+  const [localProducts, setLocalProducts] = useState<Product[]>(demoProducts);
+  const [localCategories, setLocalCategories] = useState<Category[]>(demoCategories);
+  const [localRestaurant, setLocalRestaurant] = useState<Restaurant>(demoRestaurant);
   const items = useCartStore((state) => state.items);
 
   useEffect(() => {
     if (data?.theme) {
       updateTheme(data.theme);
     }
-  }, [data?.theme, updateTheme]);
+    if (data?.products) {
+      setLocalProducts(data.products);
+    }
+    if (data?.categories) {
+      setLocalCategories(data.categories);
+    }
+    if (data?.restaurant) {
+      setLocalRestaurant(data.restaurant);
+    }
+  }, [data?.categories, data?.products, data?.restaurant, data?.theme, updateTheme]);
 
-  const catalog = data ?? {
-    categories: [],
-    products: [],
-    source: 'demo' as const
+  const catalog = {
+    categories: localCategories,
+    products: localProducts,
+    restaurant: localRestaurant,
+    source: data?.source ?? ('demo' as const)
   };
 
   const title = useMemo(() => {
@@ -752,6 +1079,39 @@ function AppContent() {
   const openProduct = (product: Product) => {
     setSelectedProduct(product);
     setScreen('product');
+  };
+
+  const editProduct = (product: Product) => {
+    setEditingProduct(product);
+    setAdminEditor('dish');
+  };
+
+  const saveProduct = (product: Product) => {
+    setLocalProducts((current) => {
+      const exists = current.some((item) => item.id === product.id);
+      return exists ? current.map((item) => (item.id === product.id ? product : item)) : [product, ...current];
+    });
+    if (selectedProduct?.id === product.id) {
+      setSelectedProduct(product);
+    }
+    setEditingProduct(null);
+    setAdminEditor(null);
+  };
+
+  const deleteProduct = (productId: string) => {
+    setLocalProducts((current) => current.filter((product) => product.id !== productId));
+    if (selectedProduct?.id === productId) {
+      setSelectedProduct(null);
+      setScreen('home');
+    }
+  };
+
+  const toggleProduct = (productId: string, key: ProductFlag) => {
+    setLocalProducts((current) =>
+      current.map((product) =>
+        product.id === productId ? { ...product, [key]: !product[key] } : product
+      )
+    );
   };
 
   const goCheckout = () => {
@@ -783,6 +1143,9 @@ function AppContent() {
           }}
           onOpenDrinks={() => setScreen('drinks')}
           onOpenProduct={openProduct}
+          onEditProduct={editProduct}
+          onDeleteProduct={deleteProduct}
+          onToggleProduct={toggleProduct}
         />
       )}
       {screen === 'catalog' && (
@@ -791,16 +1154,51 @@ function AppContent() {
           products={catalog.products}
           initialCategory={catalogCategory}
           onOpenProduct={openProduct}
+          onEditProduct={editProduct}
+          onDeleteProduct={deleteProduct}
+          onToggleProduct={toggleProduct}
         />
       )}
-      {screen === 'drinks' && <DrinksScreen products={catalog.products} onOpenProduct={openProduct} />}
+      {screen === 'drinks' && (
+        <DrinksScreen
+          products={catalog.products}
+          onOpenProduct={openProduct}
+          onEditProduct={editProduct}
+          onDeleteProduct={deleteProduct}
+          onToggleProduct={toggleProduct}
+        />
+      )}
       {screen === 'product' && selectedProduct && <ProductScreen product={selectedProduct} products={catalog.products} />}
-      {screen === 'checkout' && <CheckoutScreen products={catalog.products} />}
+      {screen === 'checkout' && <CheckoutScreen products={catalog.products} restaurant={catalog.restaurant} />}
 
       <CartBar onCheckout={goCheckout} />
       <AdminPanel />
-      <DesignEditor />
-      {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
+      <DesignEditor
+        editingProduct={editingProduct}
+        categories={catalog.categories}
+        products={catalog.products}
+        restaurant={catalog.restaurant}
+        onSaveProduct={saveProduct}
+        onCloseProduct={() => setEditingProduct(null)}
+        onUpdateRestaurant={(patch) => setLocalRestaurant((current) => ({ ...current, ...patch }))}
+        onImport={(payload) => {
+          if (payload.products) {
+            setLocalProducts(payload.products);
+          }
+          if (payload.restaurant) {
+            setLocalRestaurant(payload.restaurant);
+          }
+          if (payload.theme) {
+            updateTheme(payload.theme);
+          }
+        }}
+      />
+      {showLogin && (
+        <LoginModal
+          onClose={() => setShowLogin(false)}
+          onSuccess={() => setAdminEditor('settings')}
+        />
+      )}
       {showReminder && (
         <DrinkReminder
           products={catalog.products}

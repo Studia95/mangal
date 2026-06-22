@@ -66,7 +66,7 @@ a {
 
 .top-bar {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) auto;
+  grid-template-columns: 112px minmax(0, 1fr) 112px;
   align-items: center;
   gap: 16px;
   margin-bottom: 28px;
@@ -76,6 +76,7 @@ a {
   display: flex;
   gap: 12px;
   align-items: center;
+  justify-content: end;
 }
 
 .icon-button,
@@ -211,8 +212,8 @@ a {
 .primary-wide,
 .modal-switch .is-active {
   border-color: transparent;
-  background: linear-gradient(135deg, var(--accent-2), var(--accent));
-  color: #1b1408;
+  background: var(--primary-bg, linear-gradient(135deg, var(--accent-2), var(--accent)));
+  color: var(--primary-text, #1b1408);
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.32), 0 12px 28px rgba(232, 162, 58, 0.16);
 }
 
@@ -240,7 +241,8 @@ a {
 
 .category-card {
   position: relative;
-  min-height: 250px;
+  min-height: 230px;
+  aspect-ratio: 1.72;
   overflow: hidden;
   padding: 24px;
   text-align: left;
@@ -344,7 +346,7 @@ a {
   position: relative;
   display: grid;
   grid-template-columns: 45% 1fr;
-  min-height: 150px;
+  min-height: 164px;
   overflow: hidden;
   color: var(--text);
   text-align: left;
@@ -420,6 +422,9 @@ a {
   right: 10px;
   z-index: 2;
   display: flex;
+  max-width: calc(100% - 20px);
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 6px;
 }
 
@@ -785,7 +790,11 @@ a {
 
 .booking-fields label span,
 .login-modal input,
-.theme-form input:not([type="color"]) {
+.theme-form input:not([type="color"]),
+.theme-form select,
+.admin-form input,
+.admin-form select,
+.admin-form textarea {
   display: flex;
   min-height: 60px;
   align-items: center;
@@ -793,6 +802,8 @@ a {
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: var(--button-radius);
   padding: 0 16px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
 }
 
 .forgot-inline {
@@ -942,9 +953,88 @@ a {
 }
 
 .login-modal,
-.theme-form {
+.theme-form,
+.admin-form {
   display: grid;
   gap: 16px;
+}
+
+.admin-form textarea {
+  min-height: 110px;
+  padding-top: 14px;
+  resize: vertical;
+}
+
+.admin-form select,
+.theme-form select {
+  width: 100%;
+}
+
+.admin-form option,
+.theme-form option {
+  background: #151719;
+  color: var(--text);
+}
+
+.photo-picker {
+  position: relative;
+  display: grid;
+  min-height: 190px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px dashed rgba(232, 162, 58, 0.55);
+  border-radius: var(--radius);
+  color: var(--accent-2);
+  text-align: center;
+}
+
+.photo-picker img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.7;
+}
+
+.photo-picker span {
+  position: relative;
+  z-index: 1;
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: rgba(0, 0, 0, 0.58);
+}
+
+.photo-picker input,
+.import-file input {
+  display: none;
+}
+
+.flag-row,
+.import-export {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.import-export {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.flag-row label {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 0 14px;
+  color: var(--text);
+}
+
+.flag-row input {
+  width: auto;
+  min-height: auto;
 }
 
 .login-modal p {
@@ -1012,13 +1102,30 @@ a {
   line-height: 1.5;
 }
 
+.admin-placeholder ul {
+  margin: 14px 0 0;
+  padding-left: 22px;
+}
+
+.instagram-link {
+  display: inline-flex;
+  min-height: 58px;
+  width: fit-content;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(232, 162, 58, 0.34);
+  border-radius: var(--button-radius);
+  padding: 0 18px;
+  color: var(--accent-2);
+}
+
 @media (max-width: 720px) {
   .app-shell {
     padding: 18px 14px 118px;
   }
 
   .top-bar {
-    grid-template-columns: 46px minmax(0, 1fr) auto;
+    grid-template-columns: 92px minmax(0, 1fr) 92px;
     gap: 8px;
   }
 
@@ -1051,20 +1158,57 @@ a {
     font-size: 15px;
   }
 
-  .category-grid,
   .catalog-grid,
-  .drink-grid,
   .popular-grid,
   .pair-grid,
   .mode-grid,
   .cabin-grid,
-  .booking-fields,
-  .modal-drinks {
+  .booking-fields {
     grid-template-columns: 1fr;
   }
 
+  .category-grid,
+  .drink-grid,
+  .modal-drinks {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
   .category-card {
-    min-height: 190px;
+    min-height: 150px;
+    aspect-ratio: 1;
+    padding: 14px;
+  }
+
+  .category-card span {
+    left: 14px;
+    bottom: 14px;
+    width: 42px;
+    height: 42px;
+  }
+
+  .category-card strong {
+    right: 30px;
+    bottom: 18px;
+    left: 64px;
+    font-size: 17px;
+  }
+
+  .category-card > svg {
+    right: 10px;
+    bottom: 22px;
+    width: 18px;
+    height: 18px;
+  }
+
+  .product-tile--drink {
+    grid-template-columns: 1fr;
+    min-height: 290px;
+  }
+
+  .product-tile--drink img {
+    height: 150px;
+    min-height: 150px;
   }
 
   .product-tile--large {
@@ -1129,6 +1273,11 @@ a {
   .cart-bar__go {
     width: 44px;
     height: 44px;
+  }
+
+  .flag-row,
+  .import-export {
+    grid-template-columns: 1fr;
   }
 
   .admin-panel {
