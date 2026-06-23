@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { cabins, categories, products, restaurant, themeSettings } from '../data/catalog';
+import type { Cabin, CatalogTag, Category, Product, Restaurant, ThemeSettings } from '../entities/models';
 
 type SupabaseConfig = {
   url?: string;
@@ -16,13 +17,15 @@ export const supabase: SupabaseClient | null =
 
 export async function loadCatalog() {
   if (!supabase) {
-    return { restaurant, categories, products, cabins, theme: themeSettings, source: 'demo' as const };
+    return { restaurant, categories, products, cabins, tags: [], theme: themeSettings, source: 'demo' as const };
   }
 
-  const [restaurantResult, categoriesResult, productsResult, themeResult] = await Promise.all([
+  const [restaurantResult, categoriesResult, productsResult, cabinsResult, tagsResult, themeResult] = await Promise.all([
     supabase.from('restaurant').select('*').limit(1).single(),
-    supabase.from('category').select('*').order('name'),
-    supabase.from('product').select('*').order('title'),
+    supabase.from('category').select('*').order('sort_order', { ascending: true }).order('name'),
+    supabase.from('product').select('*').order('sort_order', { ascending: true }).order('title'),
+    supabase.from('cabin').select('*').order('sort_order', { ascending: true }).order('title'),
+    supabase.from('catalog_tag').select('*').order('sort_order', { ascending: true }).order('name'),
     supabase.from('theme_settings').select('*').limit(1).single()
   ]);
 
@@ -30,8 +33,100 @@ export async function loadCatalog() {
     restaurant: restaurantResult.data ?? restaurant,
     categories: categoriesResult.data ?? categories,
     products: productsResult.data ?? products,
-    cabins,
+    cabins: cabinsResult.data ?? cabins,
+    tags: tagsResult.data ?? [],
     theme: themeResult.data ?? themeSettings,
     source: 'supabase' as const
   };
+}
+
+async function throwOnError<T>(request: PromiseLike<{ data: T | null; error: unknown }>) {
+  const { data, error } = await request;
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+const postgrestList = (values: string[]) => `(${values.map((value) => `"${value.replace(/"/g, '""')}"`).join(',')})`;
+
+export async function saveProductToSupabase(product: Product) {
+  if (!supabase) return;
+  await throwOnError(supabase.from('product').upsert(product, { onConflict: 'id' }));
+}
+
+export async function updateProductInSupabase(productId: string, patch: Partial<Product>) {
+  if (!supabase) return;
+  await throwOnError(supabase.from('product').update(patch).eq('id', productId));
+}
+
+export async function deleteProductFromSupabase(productId: string) {
+  if (!supabase) return;
+  await throwOnError(supabase.from('product').delete().eq('id', productId));
+}
+
+export async function saveRestaurantToSupabase(value: Restaurant) {
+  if (!supabase) return;
+  await throwOnError(supabase.from('restaurant').upsert(value, { onConflict: 'id' }));
+}
+
+export async function saveThemeToSupabase(value: ThemeSettings) {
+  if (!supabase) return;
+  await throwOnError(supabase.from('theme_settings').upsert(value, { onConflict: 'id' }));
+}
+
+export async function replaceCategoriesInSupabase(values: Category[]) {
+  if (!supabase) return;
+  const ids = values.map((value) => value.id);
+  await throwOnError(supabase.from('category').upsert(values.map((value, index) => ({ ...value, sort_order: index })), { onConflict: 'id' }));
+  if (ids.length > 0) {
+    await throwOnError(supabase.from('category').delete().not('id', 'in', postgrestList(ids)));
+  } else {
+    await throwOnError(supabase.from('category').delete().neq('id', ''));
+  }
+}
+
+export async function replaceTagsInSupabase(values: CatalogTag[]) {
+  if (!supabase) return;
+  const ids = values.map((value) => value.id);
+  await throwOnError(supabase.from('catalog_tag').upsert(values.map((value, index) => ({ ...value, sort_order: index })), { onConflict: 'id' }));
+  if (ids.length > 0) {
+    await throwOnError(supabase.from('catalog_tag').delete().not('id', 'in', postgrestList(ids)));
+  } else {
+    await throwOnError(supabase.from('catalog_tag').delete().neq('id', ''));
+  }
+}
+
+export async function replaceProductsInSupabase(values: Product[]) {
+  if (!supabase) return;
+  const ids = values.map((value) => value.id);
+  if (values.length > 0) {
+    await throwOnError(supabase.from('product').upsert(values.map((value, index) => ({ ...value, sort_order: index })), { onConflict: 'id' }));
+  }
+  if (ids.length > 0) {
+    await throwOnError(supabase.from('product').delete().not('id', 'in', postgrestList(ids)));
+  } else {
+    await throwOnError(supabase.from('product').delete().neq('id', ''));
+  }
+}
+
+export async function replaceCatalogInSupabase(payload: {
+  restaurant?: Restaurant;
+  categories?: Category[];
+  tags?: CatalogTag[];
+  products?: Product[];
+  cabins?: Cabin[];
+  theme?: ThemeSettings;
+}) {
+  if (!supabase) return;
+  if (payload.restaurant) await saveRestaurantToSupabase(payload.restaurant);
+  if (payload.theme) await saveThemeToSupabase(payload.theme);
+  if (payload.categories) await replaceCategoriesInSupabase(payload.categories);
+  if (payload.tags) await replaceTagsInSupabase(payload.tags);
+  if (payload.cabins) {
+    await throwOnError(supabase.from('cabin').upsert(payload.cabins.map((value, index) => ({ ...value, sort_order: index })), { onConflict: 'id' }));
+  }
+  if (payload.products) {
+    await replaceProductsInSupabase(payload.products);
+  }
 }

@@ -48,7 +48,17 @@ import {
   useOrderStore,
   useThemeStore
 } from '../features/stores';
-import { loadCatalog } from '../shared/supabase';
+import {
+  deleteProductFromSupabase,
+  loadCatalog,
+  replaceCatalogInSupabase,
+  replaceCategoriesInSupabase,
+  replaceTagsInSupabase,
+  saveProductToSupabase,
+  saveRestaurantToSupabase,
+  saveThemeToSupabase,
+  updateProductInSupabase
+} from '../shared/supabase';
 
 const queryClient = new QueryClient();
 
@@ -1542,6 +1552,11 @@ function AppContent() {
   const [localRestaurant, setLocalRestaurant] = useState<Restaurant>(demoRestaurant);
   const items = useCartStore((state) => state.items);
   const cartCount = selectCartCount(items);
+  const persist = (action: Promise<void>) => {
+    void action.catch((error) => {
+      console.error('Supabase save failed', error);
+    });
+  };
 
   useEffect(() => {
     if (data?.theme) {
@@ -1556,7 +1571,10 @@ function AppContent() {
     if (data?.restaurant) {
       setLocalRestaurant(data.restaurant);
     }
-  }, [data?.categories, data?.products, data?.restaurant, data?.theme, updateTheme]);
+    if (data?.tags && data.tags.length > 0) {
+      setLocalTags(data.tags);
+    }
+  }, [data?.categories, data?.products, data?.restaurant, data?.tags, data?.theme, updateTheme]);
 
   const catalog = {
     categories: localCategories,
@@ -1601,6 +1619,7 @@ function AppContent() {
     }
     setEditingProduct(null);
     setAdminEditor(null);
+    persist(saveProductToSupabase(product));
   };
 
   const deleteProduct = (productId: string) => {
@@ -1609,14 +1628,48 @@ function AppContent() {
       setSelectedProduct(null);
       setScreen('home');
     }
+    persist(deleteProductFromSupabase(productId));
   };
 
   const toggleProduct = (productId: string, key: ProductFlag) => {
+    const product = localProducts.find((item) => item.id === productId);
     setLocalProducts((current) =>
       current.map((product) =>
         product.id === productId ? { ...product, [key]: !product[key] } : product
       )
     );
+    if (product) {
+      persist(updateProductInSupabase(productId, { [key]: !product[key] } as Partial<Product>));
+    }
+  };
+
+  const saveRestaurant = (value: Restaurant) => {
+    setLocalRestaurant(value);
+    persist(saveRestaurantToSupabase(value));
+  };
+
+  const updateRestaurant = (patch: Partial<Restaurant>) => {
+    setLocalRestaurant((current) => {
+      const next = { ...current, ...patch };
+      persist(saveRestaurantToSupabase(next));
+      return next;
+    });
+  };
+
+  const saveCategories = (values: Category[]) => {
+    setLocalCategories(values);
+    persist(replaceCategoriesInSupabase(values));
+  };
+
+  const saveTags = (values: CatalogTag[]) => {
+    setLocalTags(values);
+    persist(replaceTagsInSupabase(values));
+  };
+
+  const saveTheme = (patch: Partial<ThemeSettings>) => {
+    const next = { ...themeStore, ...patch };
+    updateTheme(patch);
+    persist(saveThemeToSupabase(next));
   };
 
   const goCheckout = () => {
@@ -1631,17 +1684,18 @@ function AppContent() {
     setLocalProducts([]);
     setLocalCategories([]);
     setLocalTags([]);
-    setLocalRestaurant({ ...demoRestaurant, name: 'Мангал', subtitle: '', whatsapp: '', instagram_url: '', address: '' });
-    updateTheme({
+    const emptyRestaurant = { ...demoRestaurant, name: 'Мангал', subtitle: '', whatsapp: '', instagram_url: '', address: '' };
+    setLocalRestaurant(emptyRestaurant);
+    saveTheme({
       background_type: 'color',
-      background_color: '#070809',
+      background_color: '#f7f3ec',
       background_image_url: '',
-      card_color: '#121416',
+      card_color: '#ffffff',
       card_radius: 16,
-      card_shadow: '0 22px 70px rgba(0, 0, 0, 0.32)',
-      text_primary: '#f8f5ef',
-      text_secondary: '#aaa39a',
-      product_title_color: '#f8f5ef',
+      card_shadow: '0 18px 46px rgba(45, 35, 20, 0.12)',
+      text_primary: '#181510',
+      text_secondary: '#766d62',
+      product_title_color: '#111827',
       category_title_color: '#f8f5ef',
       accent_color: '#e8a23a',
       accent_secondary: '#ffd082',
@@ -1649,6 +1703,7 @@ function AppContent() {
       button_radius: 14,
       header_style: 'centered'
     });
+    persist(replaceCatalogInSupabase({ restaurant: emptyRestaurant, categories: [], tags: [], products: [] }));
     setScreen('settings');
   };
 
@@ -1666,17 +1721,17 @@ function AppContent() {
       />
       {screen === 'settings' && <SettingsHome onOpen={setScreen} />}
       {screen === 'settings-profile' && (
-        <ProfileSettings restaurant={catalog.restaurant} onSave={(restaurant) => setLocalRestaurant(restaurant)} />
+        <ProfileSettings restaurant={catalog.restaurant} onSave={saveRestaurant} />
       )}
       {screen === 'settings-categories' && (
         <CategoriesSettings
           categories={catalog.categories}
           tags={localTags}
-          onChangeCategories={setLocalCategories}
-          onChangeTags={setLocalTags}
+          onChangeCategories={saveCategories}
+          onChangeTags={saveTags}
         />
       )}
-      {screen === 'settings-design' && <DesignSettings theme={themeStore} onChange={updateTheme} />}
+      {screen === 'settings-design' && <DesignSettings theme={themeStore} onChange={saveTheme} />}
       {screen === 'settings-backup' && (
         <BackupSettings
           restaurant={catalog.restaurant}
@@ -1690,8 +1745,17 @@ function AppContent() {
             if (payload.tags) setLocalTags(payload.tags);
             if (payload.restaurant) setLocalRestaurant(payload.restaurant);
             if (payload.theme) updateTheme(payload.theme);
+            persist(
+              replaceCatalogInSupabase({
+                products: payload.products,
+                categories: payload.categories,
+                tags: payload.tags,
+                restaurant: payload.restaurant,
+                theme: payload.theme
+              })
+            );
             if (payload.design) {
-              updateTheme({
+              saveTheme({
                 background_color: payload.design.backgroundColor ?? (payload.design.theme === 'light' ? '#f7f3ec' : '#070809'),
                 card_color: payload.design.cardColor ?? (payload.design.cardStyle === 'light' ? '#ffffff' : '#121416'),
                 accent_color: payload.design.primaryColor ?? themeStore.accent_color,
@@ -1776,7 +1840,7 @@ function AppContent() {
         restaurant={catalog.restaurant}
         onSaveProduct={saveProduct}
         onCloseProduct={() => setEditingProduct(null)}
-        onUpdateRestaurant={(patch) => setLocalRestaurant((current) => ({ ...current, ...patch }))}
+        onUpdateRestaurant={updateRestaurant}
         onImport={(payload) => {
           if (payload.products) {
             setLocalProducts(payload.products);
@@ -1787,6 +1851,13 @@ function AppContent() {
           if (payload.theme) {
             updateTheme(payload.theme);
           }
+          persist(
+            replaceCatalogInSupabase({
+              products: payload.products,
+              restaurant: payload.restaurant,
+              theme: payload.theme
+            })
+          );
         }}
         cartCount={cartCount}
         onNavigate={(target) => {

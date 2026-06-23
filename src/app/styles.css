@@ -1,9 +1,9 @@
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #070809;
-  color: #f8f5ef;
+  background: #f7f3ec;
+  color: #181510;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -15,7 +15,7 @@
 body {
   margin: 0;
   min-width: 320px;
-  background: #070809;
+  background: #f7f3ec;
 }
 
 button,
@@ -42,12 +42,12 @@ a {
 }
 
 .app-shell {
-  --bg: #070809;
-  --card: #121416;
+  --bg: #f7f3ec;
+  --card: #ffffff;
   --radius: 18px;
-  --shadow: 0 22px 70px rgba(0, 0, 0, 0.32);
-  --text: #f8f5ef;
-  --muted: #aaa39a;
+  --shadow: 0 18px 46px rgba(45, 35, 20, 0.12);
+  --text: #181510;
+  --muted: #766d62;
   --accent: #e8a23a;
   --accent-2: #ffd082;
   --button-radius: 14px;
@@ -56,8 +56,7 @@ a {
   margin: 0 auto;
   padding: 28px 30px 130px;
   background:
-    radial-gradient(circle at 50% -10%, rgba(232, 162, 58, 0.14), transparent 26%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 22%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.62), transparent 20%),
     var(--bg);
   background-position: center;
   background-size: cover;
@@ -82,10 +81,12 @@ a {
 .icon-button,
 .add-button,
 .admin-card-tools button {
-  display: inline-grid;
+  display: inline-flex;
   width: 52px;
   height: 52px;
-  place-items: center;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border: 1px solid rgba(232, 162, 58, 0.22);
   border-radius: var(--button-radius);
   background: rgba(255, 255, 255, 0.04);
@@ -94,8 +95,10 @@ a {
 
 .icon-button svg,
 .add-button svg {
+  display: block;
   width: 26px;
   height: 26px;
+  flex: 0 0 auto;
 }
 
 .cart-icon {
@@ -361,9 +364,8 @@ a {
 .product-tile {
   position: relative;
   display: grid;
-  grid-template-rows: 52% 48%;
-  aspect-ratio: 1 / 1;
-  min-height: 0;
+  grid-template-rows: minmax(118px, 52%) minmax(126px, 48%);
+  min-height: 244px;
   overflow: hidden;
   color: var(--text);
   text-align: left;
@@ -403,7 +405,7 @@ a {
   flex-direction: column;
   justify-content: space-between;
   gap: 8px;
-  padding: 10px;
+  padding: 12px 12px 14px;
 }
 
 .product-tile h3 {
@@ -426,21 +428,26 @@ a {
 
 .product-tile__bottom {
   display: flex;
-  align-items: end;
+  min-height: 42px;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 
 .product-tile strong {
+  min-width: 0;
   color: var(--accent-2);
   font-size: 16px;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
 }
 
 .add-button {
   flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   border-color: var(--accent);
+  border-radius: 999px;
   color: var(--accent-2);
 }
 
@@ -494,16 +501,17 @@ a {
 .product-state--popular {
   right: 8px;
   top: 8px;
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
   background: var(--accent-2);
   color: #18120a;
 }
 
 .product-state--popular svg {
-  width: 15px;
-  height: 15px;
+  display: block;
+  width: 19px;
+  height: 19px;
 }
 
 .product-state--hidden {
@@ -1676,6 +1684,11 @@ a {
     height: 44px;
   }
 
+  .icon-button svg {
+    width: 22px;
+    height: 22px;
+  }
+
   .brand-logo svg {
     width: 48px;
     height: 48px;
@@ -1751,6 +1764,20 @@ a {
     font-size: 14px;
   }
 
+  .product-tile {
+    grid-template-rows: minmax(92px, 50%) minmax(118px, 50%);
+    min-height: 210px;
+  }
+
+  .product-tile__body {
+    padding: 10px 10px 12px;
+  }
+
+  .product-tile__bottom {
+    min-height: 38px;
+    gap: 8px;
+  }
+
   .product-tile p {
     font-size: 11px;
   }
@@ -1760,8 +1787,13 @@ a {
   }
 
   .product-tile .add-button {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
+  }
+
+  .product-tile .add-button svg {
+    width: 18px;
+    height: 18px;
   }
 
   .product-hero {
