@@ -56,21 +56,6 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': path.resolve(__dirname, './src')
       }
-    },
-    build: {
-      rollupOptions: {
-        output: {
-          entryFileNames: 'assets/index.js',
-          chunkFileNames: 'assets/[name].js',
-          assetFileNames: (assetInfo) => {
-            if (assetInfo.name?.endsWith('.css')) {
-              return 'assets/index.css';
-            }
-
-            return 'assets/[name][extname]';
-          }
-        }
-      }
     }
   };
 });
