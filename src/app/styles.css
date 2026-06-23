@@ -1605,6 +1605,42 @@ a {
   backdrop-filter: blur(10px);
 }
 
+.flow-backdrop {
+  right: 0;
+  bottom: 112px;
+  left: 0;
+  align-items: end;
+  padding: 14px 16px 0;
+  background: rgba(0, 0, 0, 0.64);
+}
+
+.flow-modal {
+  position: relative;
+  width: min(820px, 100%);
+  max-height: calc(100dvh - 136px);
+  border-radius: 28px;
+  padding: 26px 20px 22px;
+}
+
+.flow-modal__close {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  display: grid;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.flow-modal__close svg {
+  width: 28px;
+  height: 28px;
+}
+
 .drink-modal,
 .login-modal,
 .design-editor {
@@ -1723,6 +1759,42 @@ a {
   border-radius: 16px;
   padding: 16px;
   background: rgba(255, 255, 255, 0.04);
+}
+
+.flow-option-card {
+  cursor: pointer;
+}
+
+.flow-continue-bar {
+  position: sticky;
+  bottom: 104px;
+  z-index: 14;
+  display: inline-flex;
+  min-height: 58px;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 16px;
+  margin-top: 14px;
+  background: var(--primary-bg, linear-gradient(135deg, var(--accent-2), var(--accent)));
+  color: var(--primary-text, #1b1408);
+  font-size: 20px;
+  font-weight: 800;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+}
+
+.flow-continue-bar svg {
+  width: 24px;
+  height: 24px;
+}
+
+.drink-modal.flow-modal {
+  width: min(820px, 100%);
+  max-height: calc(100dvh - 136px);
+  border-radius: 28px;
+  padding: 26px 20px 22px;
 }
 
 .login-modal,

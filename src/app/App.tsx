@@ -40,8 +40,6 @@ import { categories as demoCategories, products as demoProducts, restaurant as d
 import type { CatalogTag, Category, Product, Restaurant, ThemeSettings } from '../entities/models';
 import { DishEditorPage } from '../features/dish-editor/DishEditorPage';
 import {
-  hasDrinkInCart,
-  hasSauceInCart,
   isSauceProduct,
   selectCartCount,
   selectCartTotal,
@@ -72,7 +70,17 @@ const formatPrice = (value: number) => `${new Intl.NumberFormat('ru-RU').format(
 type SettingsScreen = 'settings' | 'settings-profile' | 'settings-categories' | 'settings-design' | 'settings-backup' | 'settings-delete';
 type Screen = 'home' | 'catalog' | 'drinks' | 'product' | 'checkout' | SettingsScreen;
 type ProductFlag = 'is_popular' | 'is_hidden';
-type CheckoutPrompt = 'sauces' | 'drinks' | null;
+type OrderFlowState = {
+  step: 'sauce' | 'drink' | 'done';
+  selectedSauce?: string;
+  selectedDrink?: string;
+};
+type FlowAction = {
+  type: 'sauce' | 'drink';
+  selectedId?: string;
+  onProductAdd: (product: Product) => void;
+  onContinue: () => void;
+};
 type CatalogDesignExport = {
   theme?: 'light' | 'dark';
   backgroundColor?: string;
@@ -231,7 +239,8 @@ function ProductTile({
   onOpen,
   onEdit,
   onDelete,
-  onToggle
+  onToggle,
+  onAdd
 }: {
   product: Product;
   variant?: 'compact' | 'large' | 'drink';
@@ -239,6 +248,7 @@ function ProductTile({
   onEdit?: (product: Product) => void;
   onDelete?: (productId: string) => void;
   onToggle?: (productId: string, key: ProductFlag) => void;
+  onAdd?: (product: Product) => void;
 }) {
   const add = useCartStore((state) => state.add);
   const isAdmin = useAuthStore((state) => state.isAdmin);
@@ -296,6 +306,7 @@ function ProductTile({
             onClick={(event) => {
               event.stopPropagation();
               add(product);
+              onAdd?.(product);
             }}
           >
             <Plus />
@@ -614,7 +625,8 @@ function CatalogScreen({
   onOpenProduct,
   onEditProduct,
   onDeleteProduct,
-  onToggleProduct
+  onToggleProduct,
+  flowAction
 }: {
   categories: Category[];
   products: Product[];
@@ -623,6 +635,7 @@ function CatalogScreen({
   onEditProduct: (product: Product) => void;
   onDeleteProduct: (productId: string) => void;
   onToggleProduct: (productId: string, key: ProductFlag) => void;
+  flowAction?: FlowAction;
 }) {
   const [active, setActive] = useState(initialCategory);
   const [query, setQuery] = useState('');
@@ -684,9 +697,15 @@ function CatalogScreen({
             onEdit={onEditProduct}
             onDelete={onDeleteProduct}
             onToggle={onToggleProduct}
+            onAdd={flowAction?.type === 'sauce' && active === 'sauces' ? flowAction.onProductAdd : undefined}
           />
         ))}
       </section>
+      {flowAction?.type === 'sauce' && active === 'sauces' && flowAction.selectedId && (
+        <button className="flow-continue-bar" type="button" onClick={flowAction.onContinue}>
+          Продолжить <ArrowRight />
+        </button>
+      )}
     </main>
   );
 }
@@ -696,13 +715,15 @@ function DrinksScreen({
   onOpenProduct,
   onEditProduct,
   onDeleteProduct,
-  onToggleProduct
+  onToggleProduct,
+  flowAction
 }: {
   products: Product[];
   onOpenProduct: (product: Product) => void;
   onEditProduct: (product: Product) => void;
   onDeleteProduct: (productId: string) => void;
   onToggleProduct: (productId: string, key: ProductFlag) => void;
+  flowAction?: FlowAction;
 }) {
   const [active, setActive] = useState('Все');
   const isAdmin = useAuthStore((state) => state.isAdmin);
@@ -729,19 +750,43 @@ function DrinksScreen({
             onEdit={onEditProduct}
             onDelete={onDeleteProduct}
             onToggle={onToggleProduct}
+            onAdd={flowAction?.type === 'drink' ? flowAction.onProductAdd : undefined}
           />
         ))}
       </section>
+      {flowAction?.type === 'drink' && flowAction.selectedId && (
+        <button className="flow-continue-bar" type="button" onClick={flowAction.onContinue}>
+          Продолжить <ArrowRight />
+        </button>
+      )}
     </main>
   );
 }
 
-function ProductScreen({ product, products }: { product: Product; products: Product[] }) {
+function ProductScreen({
+  product,
+  products,
+  flowAction
+}: {
+  product: Product;
+  products: Product[];
+  flowAction?: FlowAction;
+}) {
   const add = useCartStore((state) => state.add);
   const decrement = useCartStore((state) => state.decrement);
   const items = useCartStore((state) => state.items);
   const quantity = items.find((item) => item.product.id === product.id)?.quantity ?? 0;
   const pairs = product.pair_ids.map((id) => products.find((item) => item.id === id)).filter((item): item is Product => Boolean(item));
+  const isFlowProduct =
+    (flowAction?.type === 'sauce' && isSauceProduct(product)) ||
+    (flowAction?.type === 'drink' && Boolean(product.drink_type));
+
+  const addProduct = () => {
+    add(product);
+    if (isFlowProduct) {
+      flowAction?.onProductAdd(product);
+    }
+  };
 
   return (
     <main className="screen product-screen">
@@ -783,7 +828,7 @@ function ProductScreen({ product, products }: { product: Product; products: Prod
           <Minus />
         </button>
         <strong>{quantity}</strong>
-        <button type="button" onClick={() => add(product)} aria-label="Увеличить">
+        <button type="button" onClick={addProduct} aria-label="Увеличить">
           <Plus />
         </button>
       </div>
@@ -795,9 +840,14 @@ function ProductScreen({ product, products }: { product: Product; products: Prod
         ))}
       </section>
 
-      <button className="primary-wide" type="button" onClick={() => add(product)} disabled={product.stock_count <= 0}>
+      <button className="primary-wide" type="button" onClick={addProduct} disabled={product.stock_count <= 0}>
         {product.stock_count <= 0 ? 'Закончилось' : `Добавить в корзину - ${formatPrice(product.price)}`}
       </button>
+      {isFlowProduct && flowAction?.selectedId && (
+        <button className="flow-continue-bar flow-continue-bar--inline" type="button" onClick={flowAction.onContinue}>
+          Продолжить <ArrowRight />
+        </button>
+      )}
     </main>
   );
 }
@@ -931,34 +981,40 @@ function CheckoutScreen({ restaurant }: { restaurant: Restaurant }) {
 function UpsellReminder({
   type,
   products,
-  onClose,
-  onBrowse
+  selectedId,
+  onSkip,
+  onBrowse,
+  onDismiss
 }: {
-  type: 'sauces' | 'drinks';
+  type: 'sauce' | 'drink';
   products: Product[];
-  onClose: () => void;
+  selectedId?: string;
+  onSkip: () => void;
   onBrowse: () => void;
+  onDismiss: () => void;
 }) {
-  const add = useCartStore((state) => state.add);
-  const isSauces = type === 'sauces';
+  const isSauces = type === 'sauce';
   const suggestions = products
     .filter((product) => (isSauces ? isSauceProduct(product) : Boolean(product.drink_type)))
     .slice(0, 4);
 
   return (
-    <div className="modal-backdrop">
-      <section className="drink-modal">
+    <div className="modal-backdrop flow-backdrop">
+      <section className="drink-modal flow-modal">
         <div className="modal-handle" />
+        <button className="flow-modal__close" type="button" onClick={onDismiss} aria-label="Закрыть">
+          <X />
+        </button>
         {isSauces ? <ChefHat className="modal-icon" /> : <Coffee className="modal-icon" />}
         <h2>{isSauces ? 'Выберите соусы' : 'Выберите напитки'}</h2>
-        <p>{isSauces ? 'Можно сразу добавить соус к заказу или открыть весь список.' : 'Можно сразу добавить напиток к заказу или открыть весь список.'}</p>
+        <p>{isSauces ? 'Откройте категорию и выберите соус к заказу.' : 'Откройте категорию и выберите напиток к заказу.'}</p>
         <div className="modal-drinks">
           {suggestions.map((product) => (
-            <article key={product.id}>
+            <article className="flow-option-card" key={product.id} onClick={onBrowse}>
               <img src={product.image_url} alt={product.title} />
               <strong>{product.title}</strong>
               <span>{formatPrice(product.price)}</span>
-              <button type="button" onClick={() => add(product)} aria-label={`Добавить ${product.title}`}>
+              <button type="button" onClick={onBrowse} aria-label={`Открыть ${product.title}`}>
                 <Plus />
               </button>
             </article>
@@ -969,11 +1025,13 @@ function UpsellReminder({
             {isSauces ? 'Соусов пока нет в каталоге.' : 'Напитков пока нет в каталоге.'}
           </p>
         )}
-        <button className="primary-wide" type="button" onClick={onBrowse}>
-          {isSauces ? 'Выбрать соус' : 'Выбрать напитки'}
-        </button>
-        <button className="ghost-wide" type="button" onClick={onClose}>
-          {isSauces ? 'Продолжить без соуса' : 'Продолжить без напитков'}
+        {!selectedId && (
+          <button className="primary-wide" type="button" onClick={onBrowse}>
+            {isSauces ? 'Выбрать соус' : 'Выбрать напиток'}
+          </button>
+        )}
+        <button className="ghost-wide" type="button" onClick={onSkip}>
+          {isSauces ? 'Продолжить без соуса' : 'Продолжить без напитка'}
         </button>
       </section>
     </div>
@@ -1780,7 +1838,7 @@ function AppContent() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showLogin, setShowLogin] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [checkoutPrompt, setCheckoutPrompt] = useState<CheckoutPrompt>(null);
+  const [orderFlow, setOrderFlow] = useState<OrderFlowState>({ step: 'done' });
   const [localProducts, setLocalProducts] = useState<Product[]>(demoProducts);
   const [localCategories, setLocalCategories] = useState<Category[]>(demoCategories);
   const [localTags, setLocalTags] = useState<CatalogTag[]>(defaultTags);
@@ -1916,33 +1974,53 @@ function AppContent() {
     persist(saveThemeToSupabase(next));
   };
 
-  const continueCheckoutAfterPrompt = () => {
-    setCheckoutPrompt(null);
-    if (checkoutPrompt === 'sauces' && !hasDrinkInCart(items)) {
-      setCheckoutPrompt('drinks');
-      return;
-    }
+  const finishOrderFlow = () => {
+    setOrderFlow((current) => ({ ...current, step: 'done' }));
     setScreen('checkout');
   };
 
-  const goCheckout = () => {
+  const continueOrderFlow = () => {
+    if (orderFlow.step === 'sauce') {
+      setOrderFlow((current) => ({ ...current, step: 'drink' }));
+      setScreen('drinks');
+      return;
+    }
+    finishOrderFlow();
+  };
+
+  const startOrderFlow = () => {
     if (screen === 'checkout') {
       return;
     }
-    if (!hasSauceInCart(items)) {
-      setCheckoutPrompt('sauces');
-      return;
-    }
-    if (!hasDrinkInCart(items)) {
-      setCheckoutPrompt('drinks');
-      return;
-    }
-    setScreen('checkout');
+    const selectedSauce = items.find((item) => isSauceProduct(item.product))?.product.id;
+    const selectedDrink = items.find((item) => item.product.drink_type)?.product.id;
+    setOrderFlow({ step: 'sauce', selectedSauce, selectedDrink });
   };
 
   const checkoutFromCart = () => {
     setIsCartOpen(false);
-    goCheckout();
+    startOrderFlow();
+  };
+
+  const openFlowCategory = () => {
+    if (orderFlow.step === 'sauce') {
+      setCatalogCategory('sauces');
+      setScreen('catalog');
+      return;
+    }
+    if (orderFlow.step === 'drink') {
+      setScreen('drinks');
+    }
+  };
+
+  const selectFlowProduct = (product: Product) => {
+    if (orderFlow.step === 'sauce' && isSauceProduct(product)) {
+      setOrderFlow((current) => ({ ...current, selectedSauce: product.id }));
+      return;
+    }
+    if (orderFlow.step === 'drink' && product.drink_type) {
+      setOrderFlow((current) => ({ ...current, selectedDrink: product.id }));
+    }
   };
 
   const resetCatalog = () => {
@@ -2080,6 +2158,16 @@ function AppContent() {
               onEditProduct={editProduct}
               onDeleteProduct={deleteProduct}
               onToggleProduct={toggleProduct}
+              flowAction={
+                orderFlow.step === 'sauce'
+                  ? {
+                      type: 'sauce',
+                      selectedId: orderFlow.selectedSauce,
+                      onProductAdd: selectFlowProduct,
+                      onContinue: continueOrderFlow
+                    }
+                  : undefined
+              }
             />
           )}
           {screen === 'drinks' && (
@@ -2089,9 +2177,34 @@ function AppContent() {
               onEditProduct={editProduct}
               onDeleteProduct={deleteProduct}
               onToggleProduct={toggleProduct}
+              flowAction={
+                orderFlow.step === 'drink'
+                  ? {
+                      type: 'drink',
+                      selectedId: orderFlow.selectedDrink,
+                      onProductAdd: selectFlowProduct,
+                      onContinue: continueOrderFlow
+                    }
+                  : undefined
+              }
             />
           )}
-          {screen === 'product' && selectedProduct && <ProductScreen product={selectedProduct} products={catalog.products} />}
+          {screen === 'product' && selectedProduct && (
+            <ProductScreen
+              product={selectedProduct}
+              products={catalog.products}
+              flowAction={
+                orderFlow.step === 'sauce' || orderFlow.step === 'drink'
+                  ? {
+                      type: orderFlow.step,
+                      selectedId: orderFlow.step === 'sauce' ? orderFlow.selectedSauce : orderFlow.selectedDrink,
+                      onProductAdd: selectFlowProduct,
+                      onContinue: continueOrderFlow
+                    }
+                  : undefined
+              }
+            />
+          )}
           {screen === 'checkout' && <CheckoutScreen restaurant={catalog.restaurant} />}
           <CartBar onCheckout={() => setIsCartOpen(true)} />
         </>
@@ -2151,20 +2264,15 @@ function AppContent() {
           onSuccess={() => setScreen('settings')}
         />
       )}
-      {checkoutPrompt && (
+      {orderFlow.step !== 'done' && screen !== 'catalog' && screen !== 'drinks' && (
         <UpsellReminder
-          type={checkoutPrompt}
+          type={orderFlow.step}
           products={catalog.products}
-          onClose={continueCheckoutAfterPrompt}
-          onBrowse={() => {
-            if (checkoutPrompt === 'sauces') {
-              setCheckoutPrompt(null);
-              setCatalogCategory('sauces');
-              setScreen('catalog');
-              return;
-            }
-            setCheckoutPrompt(null);
-            setScreen('drinks');
+          selectedId={orderFlow.step === 'sauce' ? orderFlow.selectedSauce : orderFlow.selectedDrink}
+          onSkip={continueOrderFlow}
+          onBrowse={openFlowCategory}
+          onDismiss={() => {
+            setOrderFlow({ step: 'done' });
           }}
         />
       )}
