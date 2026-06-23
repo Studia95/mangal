@@ -36,6 +36,15 @@ npm run check
 
 GitHub Pages должен публиковать папку `dist`. В репозитории добавлен workflow `.github/workflows/pages.yml`, который собирает проект и выкладывает `dist` автоматически.
 
+Для сборки с Supabase добавьте в GitHub репозитории secrets:
+
+```bash
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+```
+
+Путь в GitHub: `Settings -> Secrets and variables -> Actions -> New repository secret`.
+
 ## Важное замечание
 
 MVP использует демо-CRUD элементы в интерфейсе. Следующий этап для реального ресторана: формы создания/редактирования, загрузка сжатых изображений в bucket `images` и SQL/RLS политики Supabase.
