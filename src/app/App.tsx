@@ -14,6 +14,7 @@ import {
   Home,
   Instagram,
   LogOut,
+  MessageCircle,
   Minus,
   Package,
   Paintbrush,
@@ -56,9 +57,13 @@ type Screen = 'home' | 'catalog' | 'drinks' | 'product' | 'checkout' | SettingsS
 type ProductFlag = 'is_popular' | 'is_hit' | 'is_new';
 type CatalogDesignExport = {
   theme?: 'light' | 'dark';
+  backgroundColor?: string;
   primaryColor?: string;
   accentColor?: string;
+  cardColor?: string;
   cardStyle?: 'light' | 'dark';
+  textColor?: string;
+  mutedTextColor?: string;
   radius?: number;
 };
 
@@ -292,6 +297,7 @@ function CartBar({ onCheckout }: { onCheckout: () => void }) {
 }
 
 function HomeScreen({
+  restaurant,
   categories,
   products,
   onOpenCatalog,
@@ -301,6 +307,7 @@ function HomeScreen({
   onDeleteProduct,
   onToggleProduct
 }: {
+  restaurant: Restaurant;
   categories: Category[];
   products: Product[];
   onOpenCatalog: (categoryId?: string) => void;
@@ -313,6 +320,7 @@ function HomeScreen({
   const [active, setActive] = useState('chechen');
   const featuredCategories = categories.filter((category) => ['fastfood', 'chechen', 'pizza', 'lemonades', 'fridge', 'cabins'].includes(category.id));
   const popular = products.filter((product) => product.is_popular).slice(0, 6);
+  const whatsapp = restaurant.whatsapp.replace(/[^\d]/g, '');
 
   return (
     <main className="screen">
@@ -373,6 +381,21 @@ function HomeScreen({
             onToggle={onToggleProduct}
           />
         ))}
+      </section>
+
+      <section className="social-section">
+        <div>
+          <h2>Наши соцсети</h2>
+          <p>Свяжитесь с нами удобным способом</p>
+        </div>
+        <div className="social-actions">
+          <a href={restaurant.instagram_url || 'https://instagram.com/'} target="_blank" rel="noreferrer">
+            <Instagram /> Instagram
+          </a>
+          <a href={`https://wa.me/${whatsapp || '79990000000'}`} target="_blank" rel="noreferrer">
+            <MessageCircle /> WhatsApp
+          </a>
+        </div>
       </section>
     </main>
   );
@@ -1005,9 +1028,49 @@ function CategoriesSettings({
   );
 }
 
+function ColorSetting({
+  label,
+  value,
+  palette,
+  onChange
+}: {
+  label: string;
+  value: string;
+  palette: string[];
+  onChange: (color: string) => void;
+}) {
+  return (
+    <div className="color-setting">
+      <div className="color-setting__head">
+        <h2>{label}</h2>
+        <label>
+          <span style={{ background: value }} />
+          <input type="color" value={value} onChange={(event) => onChange(event.target.value)} aria-label={label} />
+        </label>
+      </div>
+      <div className="swatches">
+        {palette.map((color) => (
+          <button
+            className={value.toLowerCase() === color.toLowerCase() ? 'swatch is-active' : 'swatch'}
+            style={{ background: color }}
+            type="button"
+            key={color}
+            onClick={() => onChange(color)}
+            aria-label={color}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DesignSettings({ theme, onChange }: { theme: ThemeSettings; onChange: (patch: Partial<ThemeSettings>) => void }) {
-  const primaryColors = ['#e8a23a', '#3b82f6', '#70ad47', '#ef4444', '#a855f7'];
-  const accentColors = ['#ffd082', '#b7791f', '#f97316', '#ec4899'];
+  const primaryColors = ['#e8a23a', '#3b82f6', '#16a34a', '#ef4444', '#a855f7', '#111827'];
+  const accentColors = ['#ffd082', '#f59e0b', '#f97316', '#ec4899', '#06b6d4', '#84cc16'];
+  const backgroundColors = ['#070809', '#101419', '#f7f3ec', '#f8fafc', '#fff7ed', '#f1f5f9'];
+  const cardColors = ['#121416', '#1f2937', '#ffffff', '#fffaf0', '#f8fafc', '#0f172a'];
+  const textColors = ['#f8f5ef', '#ffffff', '#181510', '#111827', '#292524', '#0f172a'];
+  const mutedColors = ['#aaa39a', '#cbd5e1', '#766d62', '#64748b', '#57534e', '#475569'];
 
   return (
     <main className="settings-screen">
@@ -1044,43 +1107,12 @@ function DesignSettings({ theme, onChange }: { theme: ThemeSettings; onChange: (
           </button>
         </div>
 
-        <h2>Основной цвет</h2>
-        <div className="swatches">
-          {primaryColors.map((color) => (
-            <button
-              className={theme.accent_color === color ? 'swatch is-active' : 'swatch'}
-              style={{ background: color }}
-              type="button"
-              key={color}
-              onClick={() => onChange({ accent_color: color })}
-              aria-label={color}
-            />
-          ))}
-        </div>
-
-        <h2>Цвет акцента</h2>
-        <div className="swatches">
-          {accentColors.map((color) => (
-            <button
-              className={theme.accent_secondary === color ? 'swatch is-active' : 'swatch'}
-              style={{ background: color }}
-              type="button"
-              key={color}
-              onClick={() => onChange({ accent_secondary: color })}
-              aria-label={color}
-            />
-          ))}
-        </div>
-
-        <h2>Фон карточек</h2>
-        <div className="choice-grid">
-          <button className={theme.card_color === '#ffffff' ? 'choice-card is-active' : 'choice-card'} type="button" onClick={() => onChange({ card_color: '#ffffff' })}>
-            Светлый
-          </button>
-          <button className={theme.card_color !== '#ffffff' ? 'choice-card is-active' : 'choice-card'} type="button" onClick={() => onChange({ card_color: '#121416' })}>
-            Тёмный
-          </button>
-        </div>
+        <ColorSetting label="Фон приложения" value={theme.background_color} palette={backgroundColors} onChange={(color) => onChange({ background_color: color })} />
+        <ColorSetting label="Основной цвет" value={theme.accent_color} palette={primaryColors} onChange={(color) => onChange({ accent_color: color })} />
+        <ColorSetting label="Цвет акцента" value={theme.accent_secondary} palette={accentColors} onChange={(color) => onChange({ accent_secondary: color })} />
+        <ColorSetting label="Цвет карточек" value={theme.card_color} palette={cardColors} onChange={(color) => onChange({ card_color: color })} />
+        <ColorSetting label="Цвет текста" value={theme.text_primary} palette={textColors} onChange={(color) => onChange({ text_primary: color })} />
+        <ColorSetting label="Вторичный текст" value={theme.text_secondary} palette={mutedColors} onChange={(color) => onChange({ text_secondary: color })} />
 
         <label className="range-field">
           <span>Скругление <b>{theme.card_radius}px</b></span>
@@ -1121,9 +1153,13 @@ function BackupSettings({
             products,
             design: {
               theme: theme.background_color === '#f7f3ec' ? 'light' : 'dark',
+              backgroundColor: theme.background_color,
               primaryColor: theme.accent_color,
               accentColor: theme.accent_secondary,
+              cardColor: theme.card_color,
               cardStyle: theme.card_color === '#ffffff' ? 'light' : 'dark',
+              textColor: theme.text_primary,
+              mutedTextColor: theme.text_secondary,
               radius: theme.card_radius
             }
           },
@@ -1554,10 +1590,12 @@ function AppContent() {
             if (payload.theme) updateTheme(payload.theme);
             if (payload.design) {
               updateTheme({
-                background_color: payload.design.theme === 'light' ? '#f7f3ec' : '#070809',
-                card_color: payload.design.cardStyle === 'light' ? '#ffffff' : '#121416',
+                background_color: payload.design.backgroundColor ?? (payload.design.theme === 'light' ? '#f7f3ec' : '#070809'),
+                card_color: payload.design.cardColor ?? (payload.design.cardStyle === 'light' ? '#ffffff' : '#121416'),
                 accent_color: payload.design.primaryColor ?? themeStore.accent_color,
                 accent_secondary: payload.design.accentColor ?? themeStore.accent_secondary,
+                text_primary: payload.design.textColor ?? themeStore.text_primary,
+                text_secondary: payload.design.mutedTextColor ?? themeStore.text_secondary,
                 card_radius: payload.design.radius ?? themeStore.card_radius
               });
             }
@@ -1585,6 +1623,7 @@ function AppContent() {
 
           {screen === 'home' && (
             <HomeScreen
+              restaurant={catalog.restaurant}
               categories={catalog.categories}
               products={catalog.products}
               onOpenCatalog={(categoryId = 'all') => {
