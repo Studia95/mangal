@@ -151,38 +151,6 @@ function TopBar({
   );
 }
 
-function CategoryPills({
-  categories,
-  active,
-  onSelect,
-  includeAll = true
-}: {
-  categories: Category[];
-  active: string;
-  onSelect: (id: string) => void;
-  includeAll?: boolean;
-}) {
-  return (
-    <div className="pills">
-      {includeAll && (
-        <button className={active === 'all' ? 'pill is-active' : 'pill'} type="button" onClick={() => onSelect('all')}>
-          Все
-        </button>
-      )}
-      {categories.map((category) => (
-        <button
-          className={active === category.id ? 'pill is-active' : 'pill'}
-          type="button"
-          key={category.id}
-          onClick={() => onSelect(category.id)}
-        >
-          {category.name}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function ProductTile({
   product,
   variant = 'compact',

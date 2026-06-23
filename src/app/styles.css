@@ -342,20 +342,27 @@ a {
 .popular-grid,
 .pair-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, calc((100% - 12px) / 2)));
   gap: 12px;
 }
 
 .catalog-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, calc((100% - 12px) / 2)));
   gap: 12px;
 }
 
 .drink-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, calc((100% - 12px) / 2)));
   gap: 12px;
+}
+
+.popular-grid > *,
+.catalog-grid > *,
+.drink-grid > *,
+.pair-grid > * {
+  min-width: 0;
 }
 
 .product-tile {
@@ -1655,7 +1662,7 @@ a {
   .popular-grid,
   .pair-grid,
   .drink-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, calc((100% - 12px) / 2)));
     gap: 12px;
   }
 
