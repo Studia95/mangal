@@ -23,6 +23,7 @@ import {
   Plus,
   Search,
   Settings,
+  ShieldCheck,
   ShoppingBag,
   ShoppingCart,
   Star,
@@ -31,9 +32,10 @@ import {
   Trash2,
   User,
   Users,
-  GripVertical
+  GripVertical,
+  X
 } from 'lucide-react';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { categories as demoCategories, products as demoProducts, restaurant as demoRestaurant } from '../data/catalog';
 import type { CatalogTag, Category, Product, Restaurant, ThemeSettings } from '../entities/models';
 import { DishEditorPage } from '../features/dish-editor/DishEditorPage';
@@ -328,6 +330,173 @@ function CartBar({ onCheckout }: { onCheckout: () => void }) {
         <ArrowRight />
       </span>
     </button>
+  );
+}
+
+function CartSheet({
+  isOpen,
+  isLoading,
+  onClose,
+  onCheckout,
+  onMenu
+}: {
+  isOpen: boolean;
+  isLoading: boolean;
+  onClose: () => void;
+  onCheckout: () => void;
+  onMenu: () => void;
+}) {
+  const items = useCartStore((state) => state.items);
+  const add = useCartStore((state) => state.add);
+  const decrement = useCartStore((state) => state.decrement);
+  const remove = useCartStore((state) => state.remove);
+  const count = selectCartCount(items);
+  const subtotal = selectCartTotal(items);
+  const delivery = 0;
+  const total = subtotal + delivery;
+  const touchStartY = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen) {
+    return null;
+  }
+
+  const closeOnSwipe = (clientY: number) => {
+    if (touchStartY.current !== null && clientY - touchStartY.current > 70) {
+      onClose();
+    }
+    touchStartY.current = null;
+  };
+
+  return (
+    <div className="cart-sheet-backdrop" onClick={onClose}>
+      <section
+        className="cart-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Корзина"
+        onClick={(event) => event.stopPropagation()}
+        onTouchStart={(event) => {
+          touchStartY.current = event.touches[0]?.clientY ?? null;
+        }}
+        onTouchEnd={(event) => {
+          closeOnSwipe(event.changedTouches[0]?.clientY ?? 0);
+        }}
+      >
+        <div className="cart-sheet__handle" />
+        <header className="cart-sheet__header">
+          <div>
+            <h2>Корзина</h2>
+            <p>{count} товаров</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Закрыть корзину">
+            <X />
+          </button>
+        </header>
+
+        {isLoading && (
+          <div className="cart-sheet__list">
+            {[1, 2, 3].map((item) => (
+              <div className="cart-skeleton" key={item}>
+                <span />
+                <div>
+                  <b />
+                  <b />
+                  <b />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!isLoading && count === 0 && (
+          <div className="cart-empty">
+            <ShoppingCart />
+            <h3>Корзина пуста</h3>
+            <button className="primary-wide" type="button" onClick={onMenu}>
+              Перейти к меню
+            </button>
+          </div>
+        )}
+
+        {!isLoading && count > 0 && (
+          <>
+            <div className="cart-sheet__list">
+              {items.map((item) => (
+                <article className="cart-item-card" key={item.product.id}>
+                  <img src={item.product.image_url} alt={item.product.title} />
+                  <div className="cart-item-card__content">
+                    <div className="cart-item-card__top">
+                      <div>
+                        <h3>{item.product.title}</h3>
+                        <p>{item.product.description}</p>
+                      </div>
+                      <button className="cart-item-card__remove" type="button" onClick={() => remove(item.product.id)} aria-label={`Удалить ${item.product.title}`}>
+                        <Trash2 />
+                      </button>
+                    </div>
+                    <div className="cart-item-card__bottom">
+                      <strong>{formatPrice(item.product.price)}</strong>
+                      <div className="cart-quantity" aria-label={`Количество ${item.product.title}`}>
+                        <button type="button" onClick={() => decrement(item.product.id)} aria-label="Уменьшить">
+                          <Minus />
+                        </button>
+                        <span>{item.quantity}</span>
+                        <button type="button" onClick={() => add(item.product)} aria-label="Увеличить">
+                          <Plus />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <section className="cart-summary">
+              <p>
+                <span>Сумма товаров</span>
+                <strong>{formatPrice(subtotal)}</strong>
+              </p>
+              <p>
+                <span>Доставка</span>
+                <strong>{formatPrice(delivery)}</strong>
+              </p>
+              <p className="cart-summary__total">
+                <span>Итого</span>
+                <strong>{formatPrice(total)}</strong>
+              </p>
+            </section>
+
+            <button className="primary-wide cart-checkout" type="button" onClick={onCheckout}>
+              Оформить заказ <ArrowRight />
+            </button>
+            <p className="cart-safe">
+              <ShieldCheck /> Безопасная оплата
+            </p>
+          </>
+        )}
+      </section>
+    </div>
   );
 }
 
@@ -1600,7 +1769,7 @@ function DesignEditor({
 }
 
 function AppContent() {
-  const { data } = useQuery({ queryKey: ['catalog'], queryFn: loadCatalog });
+  const { data, isLoading } = useQuery({ queryKey: ['catalog'], queryFn: loadCatalog });
   const themeStore = useThemeStore((state) => state.theme);
   const updateTheme = useThemeStore((state) => state.updateTheme);
   const setAdmin = useAuthStore((state) => state.setAdmin);
@@ -1610,6 +1779,7 @@ function AppContent() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showLogin, setShowLogin] = useState(false);
+  const [isCartOpen, setIsCartOpen] = useState(false);
   const [checkoutPrompt, setCheckoutPrompt] = useState<CheckoutPrompt>(null);
   const [localProducts, setLocalProducts] = useState<Product[]>(demoProducts);
   const [localCategories, setLocalCategories] = useState<Category[]>(demoCategories);
@@ -1770,6 +1940,11 @@ function AppContent() {
     setScreen('checkout');
   };
 
+  const checkoutFromCart = () => {
+    setIsCartOpen(false);
+    goCheckout();
+  };
+
   const resetCatalog = () => {
     setLocalProducts([]);
     setLocalCategories([]);
@@ -1875,7 +2050,7 @@ function AppContent() {
             canBack={screen !== 'home'}
             onBack={() => setScreen('home')}
             onSearch={screen === 'home' ? () => setScreen('catalog') : undefined}
-            onCart={goCheckout}
+            onCart={() => setIsCartOpen(true)}
             onAdmin={() => setShowLogin(true)}
             logoUrl={catalog.restaurant.logo_url}
           />
@@ -1918,7 +2093,7 @@ function AppContent() {
           )}
           {screen === 'product' && selectedProduct && <ProductScreen product={selectedProduct} products={catalog.products} />}
           {screen === 'checkout' && <CheckoutScreen restaurant={catalog.restaurant} />}
-          <CartBar onCheckout={goCheckout} />
+          <CartBar onCheckout={() => setIsCartOpen(true)} />
         </>
       )}
 
@@ -1993,6 +2168,16 @@ function AppContent() {
           }}
         />
       )}
+      <CartSheet
+        isOpen={isCartOpen}
+        isLoading={isLoading}
+        onClose={() => setIsCartOpen(false)}
+        onCheckout={checkoutFromCart}
+        onMenu={() => {
+          setIsCartOpen(false);
+          setScreen('catalog');
+        }}
+      />
     </div>
   );
 }

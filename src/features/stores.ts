@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import type { CartItem, OrderMode, Product, ThemeSettings } from '../entities/models';
 import { themeSettings } from '../data/catalog';
 
@@ -7,6 +8,7 @@ type CartStore = {
   add: (product: Product) => void;
   remove: (productId: string) => void;
   decrement: (productId: string) => void;
+  updateQuantity: (productId: string, quantity: number) => void;
   clear: () => void;
 };
 
@@ -37,40 +39,58 @@ type OrderStore = {
   setOrder: (patch: Partial<Omit<OrderStore, 'setOrder'>>) => void;
 };
 
-export const useCartStore = create<CartStore>((set) => ({
-  items: [],
-  add: (product) =>
-    set((state) => {
-      if (product.stock_count <= 0) {
-        return state;
-      }
+export const useCartStore = create<CartStore>()(
+  persist(
+    (set) => ({
+      items: [],
+      add: (product) =>
+        set((state) => {
+          if (product.stock_count <= 0) {
+            return state;
+          }
 
-      const existing = state.items.find((item) => item.product.id === product.id);
+          const existing = state.items.find((item) => item.product.id === product.id);
 
-      if (existing) {
-        return {
-          items: state.items.map((item) =>
-            item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-          )
-        };
-      }
+          if (existing) {
+            return {
+              items: state.items.map((item) =>
+                item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+              )
+            };
+          }
 
-      return { items: [...state.items, { product, quantity: 1 }] };
+          return { items: [...state.items, { product, quantity: 1 }] };
+        }),
+      remove: (productId) =>
+        set((state) => ({
+          items: state.items.filter((item) => item.product.id !== productId)
+        })),
+      decrement: (productId) =>
+        set((state) => ({
+          items: state.items
+            .map((item) =>
+              item.product.id === productId ? { ...item, quantity: item.quantity - 1 } : item
+            )
+            .filter((item) => item.quantity > 0)
+        })),
+      updateQuantity: (productId, quantity) =>
+        set((state) => ({
+          items:
+            quantity <= 0
+              ? state.items.filter((item) => item.product.id !== productId)
+              : state.items.map((item) =>
+                  item.product.id === productId ? { ...item, quantity } : item
+                )
+        })),
+      clear: () => set({ items: [] })
     }),
-  remove: (productId) =>
-    set((state) => ({
-      items: state.items.filter((item) => item.product.id !== productId)
-    })),
-  decrement: (productId) =>
-    set((state) => ({
-      items: state.items
-        .map((item) =>
-          item.product.id === productId ? { ...item, quantity: item.quantity - 1 } : item
-        )
-        .filter((item) => item.quantity > 0)
-    })),
-  clear: () => set({ items: [] })
-}));
+    {
+      name: 'mangal-cart',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({ items: state.items })
+    }
+  )
+);
 
 export const useAuthStore = create<AuthStore>((set) => ({
   isAdmin: false,
