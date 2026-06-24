@@ -1156,14 +1156,14 @@ function ProfileSettings({
   const [draft, setDraft] = useState(restaurant);
   const [error, setError] = useState('');
 
-  const updateImage = async (field: 'logo_url' | 'banner_url', file?: File) => {
+  const updateLogo = async (file?: File) => {
     if (!file) return;
-    if (field === 'logo_url' && file.type !== 'image/png') {
+    if (file.type !== 'image/png') {
       setError('Логотип должен быть в PNG.');
       return;
     }
     const value = await fileToDataUrl(file);
-    setDraft((current) => ({ ...current, [field]: value }));
+    setDraft((current) => ({ ...current, logo_url: value }));
     setError('');
   };
 
@@ -1195,36 +1195,25 @@ function ProfileSettings({
   return (
     <main className="settings-screen">
       <form className="settings-form-card" onSubmit={submit}>
-        <div className="media-fields">
-          <label className="media-upload media-upload--logo">
+        <div className="profile-field">
+          <span>Название ресторана</span>
+          <div className="profile-identity-field">
+            <label className="profile-logo-picker" aria-label="Заменить логотип">
+              <input
+                type="file"
+                accept="image/png"
+                onChange={(event) => void updateLogo(event.target.files?.[0])}
+              />
+              {draft.logo_url ? <img src={draft.logo_url} alt="" /> : <Store />}
+            </label>
             <input
-              type="file"
-              accept="image/png"
-              onChange={(event) => void updateImage('logo_url', event.target.files?.[0])}
+              value={draft.name}
+              required
+              onChange={(event) => setDraft({ ...draft, name: event.target.value })}
             />
-            {draft.logo_url ? <img src={draft.logo_url} alt="" /> : <Store />}
-            <span>
-              <strong>Логотип PNG</strong>
-              <small>Выбрать из медиатеки</small>
-            </span>
-          </label>
-          <label className="media-upload media-upload--cover">
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(event) => void updateImage('banner_url', event.target.files?.[0])}
-            />
-            {draft.banner_url ? <img src={draft.banner_url} alt="" /> : <CloudUpload />}
-            <span>
-              <strong>Обложка</strong>
-              <small>Изображение для верхнего блока</small>
-            </span>
-          </label>
+          </div>
+          <small>Нажмите на логотип, чтобы заменить PNG.</small>
         </div>
-        <label>
-          Название ресторана
-          <input value={draft.name} required onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
-        </label>
         <label>
           Описание
           <textarea
