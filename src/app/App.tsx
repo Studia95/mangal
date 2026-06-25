@@ -1663,6 +1663,7 @@ function CategoriesSettings({
         <div className="settings-section-head">
           <h2>Категории</h2>
         </div>
+        <small>Фото категории лучше загружать широким: 16:9 или около 1.72:1, например 1200 x 700 px.</small>
         <InlineEditor
           placeholder="Новая категория"
           onAdd={(name) =>
