@@ -1325,7 +1325,9 @@ function CheckoutScreen({ restaurant, cabins, onSubmitOrder }: { restaurant: Res
               event.preventDefault();
               return;
             }
-            onSubmitOrder();
+            event.preventDefault();
+            window.open(whatsappHref, '_blank', 'noopener,noreferrer');
+            window.setTimeout(onSubmitOrder, 500);
           }}
         >
           Отправить заказ
