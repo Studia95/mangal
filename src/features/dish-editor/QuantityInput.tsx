@@ -1,3 +1,46 @@
+import { useEffect, useState } from 'react';
+
+function NumericInput({
+  value,
+  step,
+  onChange
+}: {
+  value: number;
+  step?: number;
+  onChange: (value: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) {
+      setText(String(value));
+    }
+  }, [focused, value]);
+
+  return (
+    <input
+      inputMode="numeric"
+      min={0}
+      step={step}
+      type="number"
+      value={text}
+      onFocus={() => setFocused(true)}
+      onBlur={() => {
+        setFocused(false);
+        if (text.trim() === '') {
+          setText('0');
+        }
+      }}
+      onChange={(event) => {
+        const next = event.target.value;
+        setText(next);
+        onChange(next.trim() === '' ? 0 : Number(next));
+      }}
+    />
+  );
+}
+
 export function QuantityInput({
   weight,
   dailyQuantity,
@@ -16,27 +59,14 @@ export function QuantityInput({
         <label>
           Вес
           <span>
-            <input
-              inputMode="numeric"
-              min={0}
-              type="number"
-              value={weight}
-              onChange={(event) => onWeightChange(Number(event.target.value))}
-            />
+            <NumericInput value={weight} onChange={onWeightChange} />
             г
           </span>
         </label>
         <label>
           Остаток на сегодня
           <span>
-            <input
-              inputMode="numeric"
-              min={0}
-              step={1}
-              type="number"
-              value={dailyQuantity}
-              onChange={(event) => onQuantityChange(Number(event.target.value))}
-            />
+            <NumericInput value={dailyQuantity} step={1} onChange={onQuantityChange} />
             шт
           </span>
         </label>

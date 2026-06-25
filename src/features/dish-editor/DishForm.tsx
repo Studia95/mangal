@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { CategorySelector } from './CategorySelector';
 import { PhotoUploader } from './PhotoUploader';
 import { QuantityInput } from './QuantityInput';
@@ -7,6 +7,47 @@ import type { Category, Product } from '../../entities/models';
 import type { Dish } from './types';
 
 const serveOptions = ['с луком', 'с соусом', 'с гарниром', 'без добавок'];
+
+function NumericInput({
+  value,
+  required,
+  onChange
+}: {
+  value: number;
+  required?: boolean;
+  onChange: (value: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) {
+      setText(String(value));
+    }
+  }, [focused, value]);
+
+  return (
+    <input
+      inputMode="numeric"
+      min={0}
+      required={required}
+      type="number"
+      value={text}
+      onFocus={() => setFocused(true)}
+      onBlur={() => {
+        setFocused(false);
+        if (text.trim() === '') {
+          setText('0');
+        }
+      }}
+      onChange={(event) => {
+        const next = event.target.value;
+        setText(next);
+        onChange(next.trim() === '' ? 0 : Number(next));
+      }}
+    />
+  );
+}
 
 export function DishForm({
   dish,
@@ -48,14 +89,7 @@ export function DishForm({
           <label>
             Цена
             <span>
-              <input
-                inputMode="numeric"
-                min={0}
-                required
-                type="number"
-                value={dish.price}
-                onChange={(event) => onChange({ price: Number(event.target.value) })}
-              />
+              <NumericInput required value={dish.price} onChange={(price) => onChange({ price })} />
               ₽
             </span>
           </label>
