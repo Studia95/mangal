@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
 import { App } from './app/App';
+import { PlatformAdminApp } from './pages/platform-admin/PlatformAdminApp';
 import './app/styles.css';
 import './features/dish-editor/styles.css';
 
@@ -37,8 +38,12 @@ const updateSW = registerSW({
   }
 });
 
+const isPlatformAdminRoute = window.location.pathname
+  .replace(import.meta.env.BASE_URL, '/')
+  .startsWith('/admin/');
+
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <App />
+    {isPlatformAdminRoute ? <PlatformAdminApp /> : <App />}
   </React.StrictMode>
 );

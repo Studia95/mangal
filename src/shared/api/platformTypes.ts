@@ -1,0 +1,88 @@
+export type ClientStatus = 'active' | 'inactive' | 'blocked' | 'pending';
+export type SubscriptionStatus = 'trial' | 'active' | 'past_due' | 'expired' | 'cancelled';
+
+export type PlatformTemplateOption = {
+  templateVersionId: string;
+  templateKey: string;
+  templateName: string;
+  businessType: string;
+  version: number;
+  description: string;
+};
+
+export type PlatformClient = {
+  id: string;
+  companyName: string;
+  ownerName: string;
+  email: string;
+  phone: string;
+  status: ClientStatus;
+  planCode: string;
+  subscriptionStatus: SubscriptionStatus;
+  subscriptionEndsAt: string | null;
+  catalogId: string;
+  catalogName: string;
+  catalogSlug: string;
+  catalogStatus: 'draft' | 'published' | 'archived';
+  templateName: string;
+  templateKey: string;
+  templateVersion: number;
+  businessType: string;
+  logoUrl: string;
+  createdAt: string;
+};
+
+export type ClientListParams = {
+  search?: string;
+  status?: string;
+  templateId?: string;
+  payment?: string;
+  page: number;
+  pageSize: number;
+};
+
+export type PlatformStats = {
+  totalClients: number;
+  activeCatalogs: number;
+  monthlyRevenue: number;
+  monthlyViews: number;
+};
+
+export type CreateClientPayload = {
+  name: string;
+  slug: string;
+  ownerName?: string;
+  email: string;
+  phone?: string;
+  password: string;
+  templateVersionId: string;
+  businessType: string;
+  planId?: string;
+  subscriptionEndsAt?: string;
+  status?: ClientStatus;
+  subscriptionStatus?: SubscriptionStatus;
+};
+
+export type CreateClientResult = {
+  clientId: string;
+  catalogId: string;
+  slug: string;
+  email: string;
+};
+
+export type AuditLogEntry = {
+  id: string;
+  action: string;
+  actorEmail: string;
+  clientName: string;
+  createdAt: string;
+};
+
+export type SubscriptionRow = {
+  id: string;
+  clientName: string;
+  planCode: string;
+  amount: number;
+  status: SubscriptionStatus;
+  endsAt: string | null;
+};
