@@ -137,6 +137,22 @@ const filterDemoClients = (params: ClientListParams) => {
   return { data: filtered.slice(from, from + params.pageSize), count: filtered.length };
 };
 
+async function getFunctionErrorMessage(error: unknown) {
+  if (error && typeof error === 'object' && 'context' in error) {
+    const context = (error as { context?: unknown }).context;
+    if (context instanceof Response) {
+      try {
+        const body = (await context.clone().json()) as { error?: string };
+        if (body.error) return body.error;
+      } catch {
+        // Fall through to the original error message.
+      }
+    }
+  }
+
+  return error instanceof Error ? error.message : 'Не удалось выполнить Edge Function.';
+}
+
 export async function getClients(params: ClientListParams): Promise<{ data: PlatformClient[]; count: number }> {
   if (!supabase) return filterDemoClients(params);
 
@@ -163,7 +179,7 @@ export async function getClients(params: ClientListParams): Promise<{ data: Plat
   }
 
   const { data, count, error } = await query;
-  if (error) return filterDemoClients(params);
+  if (error) throw error;
 
   return { data: ((data ?? []) as ClientRow[]).map(mapClient), count: count ?? 0 };
 }
@@ -192,7 +208,7 @@ export async function createClient(payload: CreateClientPayload): Promise<Create
     body: payload
   });
 
-  if (error) throw error;
+  if (error) throw new Error(await getFunctionErrorMessage(error));
   if (!data) throw new Error('Edge Function did not return client data.');
   return data;
 }

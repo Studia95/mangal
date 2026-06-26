@@ -1,13 +1,15 @@
 export function getCatalogPublicUrl(slug: string): string {
   const cleanSlug = slug.replace(/^\/+|\/+$/g, '');
   const base = new URL(import.meta.env.BASE_URL, window.location.origin);
-  return new URL(cleanSlug, base).toString();
+  base.hash = `/${cleanSlug}`;
+  return base.toString();
 }
 
 export function getCatalogAdminUrl(slug: string): string {
   const cleanSlug = slug.replace(/^\/+|\/+$/g, '');
   const base = new URL(import.meta.env.BASE_URL, window.location.origin);
-  return new URL(`admin/catalogs/${cleanSlug}`, base).toString();
+  base.hash = `/admin/catalogs/${cleanSlug}`;
+  return base.toString();
 }
 
 export async function copyText(value: string) {

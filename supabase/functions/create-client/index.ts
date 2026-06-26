@@ -115,13 +115,16 @@ Deno.serve(async (request) => {
     }
 
     const ownerUserId = createdUser.user.id;
+    let catalogId: string | null = null;
+    let clientId: string | null = null;
 
     try {
-      await adminClient.from('profiles').upsert({
+      const { error: profileError } = await adminClient.from('profiles').upsert({
         id: ownerUserId,
         email: payload.email,
         full_name: payload.ownerName ?? ''
       });
+      if (profileError) throw profileError;
 
       const { data: catalog, error: catalogError } = await adminClient
         .from('catalogs')
@@ -135,24 +138,28 @@ Deno.serve(async (request) => {
         .select('id, slug')
         .single();
       if (catalogError || !catalog) throw catalogError ?? new Error('Could not create catalog.');
+      catalogId = catalog.id;
 
-      await adminClient.from('catalog_members').insert({
+      const { error: memberError } = await adminClient.from('catalog_members').insert({
         catalog_id: catalog.id,
         user_id: ownerUserId,
         role: 'owner'
       });
+      if (memberError) throw memberError;
 
-      await adminClient.from('catalog_theme_settings').insert({
+      const { error: themeError } = await adminClient.from('catalog_theme_settings').insert({
         catalog_id: catalog.id,
         settings: {}
       });
+      if (themeError) throw themeError;
 
-      await adminClient.from('catalog_sections').insert([
+      const { error: sectionsError } = await adminClient.from('catalog_sections').insert([
         { catalog_id: catalog.id, key: 'hero', title: 'Главная', sort_order: 10 },
         { catalog_id: catalog.id, key: 'categories', title: 'Категории', sort_order: 20 },
         { catalog_id: catalog.id, key: 'products', title: 'Все позиции', sort_order: 30 },
         { catalog_id: catalog.id, key: 'contacts', title: 'Контакты', sort_order: 40 }
       ]);
+      if (sectionsError) throw sectionsError;
 
       const { data: client, error: clientError } = await adminClient
         .from('clients')
@@ -172,16 +179,18 @@ Deno.serve(async (request) => {
         .select('id')
         .single();
       if (clientError || !client) throw clientError ?? new Error('Could not create client.');
+      clientId = client.id;
 
-      await adminClient.from('client_subscriptions').insert({
+      const { error: subscriptionError } = await adminClient.from('client_subscriptions').insert({
         client_id: client.id,
         plan_code: payload.planId ?? 'trial',
         status: payload.subscriptionStatus ?? 'trial',
         started_at: new Date().toISOString(),
         ends_at: payload.subscriptionEndsAt || null
       });
+      if (subscriptionError) throw subscriptionError;
 
-      await adminClient.from('audit_logs').insert({
+      const { error: auditError } = await adminClient.from('audit_logs').insert({
         catalog_id: catalog.id,
         actor_id: userData.user.id,
         action: 'client.created',
@@ -193,6 +202,7 @@ Deno.serve(async (request) => {
           owner_email: payload.email
         }
       });
+      if (auditError) throw auditError;
 
       return jsonResponse({
         clientId: client.id,
@@ -201,6 +211,12 @@ Deno.serve(async (request) => {
         email: payload.email
       });
     } catch (error) {
+      if (clientId) {
+        await adminClient.from('clients').delete().eq('id', clientId);
+      }
+      if (catalogId) {
+        await adminClient.from('catalogs').delete().eq('id', catalogId);
+      }
       await adminClient.auth.admin.deleteUser(ownerUserId);
       throw error;
     }

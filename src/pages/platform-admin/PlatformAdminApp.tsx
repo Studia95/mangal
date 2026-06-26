@@ -600,6 +600,7 @@ function CreateClientForm({
   const name = watch('name');
   const password = watch('password');
   const slug = watch('slug');
+  const templateVersionId = watch('templateVersionId');
 
   useEffect(() => {
     if (!slug && name) {
@@ -607,7 +608,14 @@ function CreateClientForm({
     }
   }, [name, setValue, slug]);
 
-  const selectedTemplate = templates.find((template) => template.templateVersionId === watch('templateVersionId'));
+  useEffect(() => {
+    if (!templateVersionId && firstTemplate) {
+      setValue('templateVersionId', firstTemplate.templateVersionId, { shouldValidate: true });
+      setValue('businessType', firstTemplate.businessType);
+    }
+  }, [firstTemplate, setValue, templateVersionId]);
+
+  const selectedTemplate = templates.find((template) => template.templateVersionId === templateVersionId);
 
   const onSubmit = handleSubmit(async (values) => {
     setIsSubmitting(true);
@@ -767,7 +775,7 @@ function CreateClientForm({
           <button type="button" onClick={onClose}>
             Отмена
           </button>
-          <button type="submit" disabled={isSubmitting}>
+          <button type="submit" disabled={isSubmitting || templates.length === 0}>
             <Plus />
             {isSubmitting ? 'Создаём...' : 'Создать клиента'}
           </button>
@@ -1107,15 +1115,31 @@ function PlatformAdminContent() {
                 }}
               />
             ) : (
-              <CreateClientForm
-                templates={templatesQuery.data ?? []}
-                onClose={() => setCreateOpen(false)}
-                onSuccess={(result) => {
-                  setSuccess(result);
-                  void queryClient.invalidateQueries({ queryKey: ['platform-clients'] });
-                  void queryClient.invalidateQueries({ queryKey: ['platform-stats'] });
-                }}
-              />
+              <>
+                {templatesQuery.isLoading && <div className="platform-state">Загружаем шаблоны...</div>}
+                {templatesQuery.isError && (
+                  <div className="platform-state">
+                    Не удалось загрузить шаблоны.
+                    <button type="button" onClick={() => void templatesQuery.refetch()}>
+                      Повторить
+                    </button>
+                  </div>
+                )}
+                {!templatesQuery.isLoading && !templatesQuery.isError && (templatesQuery.data?.length ?? 0) === 0 && (
+                  <div className="platform-state">Сначала добавьте опубликованную версию шаблона в Supabase.</div>
+                )}
+                {!templatesQuery.isLoading && !templatesQuery.isError && (templatesQuery.data?.length ?? 0) > 0 && (
+                  <CreateClientForm
+                    templates={templatesQuery.data ?? []}
+                    onClose={() => setCreateOpen(false)}
+                    onSuccess={(result) => {
+                      setSuccess(result);
+                      void queryClient.invalidateQueries({ queryKey: ['platform-clients'] });
+                      void queryClient.invalidateQueries({ queryKey: ['platform-stats'] });
+                    }}
+                  />
+                )}
+              </>
             )}
           </div>
         </div>

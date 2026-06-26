@@ -49,9 +49,8 @@ export async function getTemplateOptions(): Promise<PlatformTemplateOption[]> {
     .eq('status', 'published')
     .order('version', { ascending: false });
 
-  if (error || !data?.length) {
-    return fallbackTemplates;
-  }
+  if (error) throw error;
+  if (!data?.length) return [];
 
   return (data as TemplateVersionRow[]).map((row) => ({
     templateVersionId: row.id,
