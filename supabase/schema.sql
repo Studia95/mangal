@@ -57,6 +57,9 @@ create table if not exists public.product (
   is_new boolean not null default false,
   is_hit boolean not null default false,
   is_hidden boolean not null default false,
+  daily_stock integer not null default 0 check (daily_stock >= 0),
+  current_stock integer not null default 0 check (current_stock >= 0),
+  is_unlimited boolean not null default false,
   stock_count integer not null default 0 check (stock_count >= 0),
   category_id text not null references public.category(id) on update cascade on delete restrict,
   category_ids text[] not null default '{}',
@@ -68,7 +71,14 @@ create table if not exists public.product (
 );
 
 alter table public.product add column if not exists category_ids text[] not null default '{}';
+alter table public.product add column if not exists daily_stock integer not null default 0 check (daily_stock >= 0);
+alter table public.product add column if not exists current_stock integer not null default 0 check (current_stock >= 0);
+alter table public.product add column if not exists is_unlimited boolean not null default false;
 update public.product set category_ids = array[category_id] where category_ids = '{}';
+update public.product
+set daily_stock = stock_count,
+    current_stock = stock_count
+where daily_stock = 0 and current_stock = 0 and stock_count > 0;
 
 create table if not exists public.product_tag (
   product_id text not null references public.product(id) on update cascade on delete cascade,
@@ -304,6 +314,11 @@ on conflict (id) do update set
   drink_type = excluded.drink_type,
   pair_ids = excluded.pair_ids,
   sort_order = excluded.sort_order;
+
+update public.product
+set daily_stock = stock_count,
+    current_stock = stock_count
+where daily_stock = 0 and current_stock = 0 and stock_count > 0;
 
 insert into public.product_tag (product_id, tag_id)
 select id, 'popular' from public.product where is_popular

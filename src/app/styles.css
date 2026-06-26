@@ -89,6 +89,24 @@ a {
   color: var(--text);
 }
 
+.app-shell--stock {
+  --bg: #faf6ee;
+  --card: #ffffff;
+  --text: #111111;
+  --muted: #6b6b6b;
+  --accent: #f59e0b;
+  --accent-2: #f59e0b;
+  --settings-card: #ffffff;
+  --settings-card-text: #111111;
+  --button-radius: 16px;
+  min-height: 100vh;
+  padding-bottom: 124px;
+  background:
+    radial-gradient(circle at 12% 6%, rgba(245, 158, 11, 0.08), transparent 34%),
+    #faf6ee;
+  color: #111111;
+}
+
 .top-bar {
   display: grid;
   grid-template-columns: 120px minmax(0, 1fr) 120px;
@@ -2021,12 +2039,13 @@ a {
   z-index: 14;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  border: 1px solid rgba(232, 162, 58, 0.35);
-  border-radius: 0;
+  gap: 0;
+  min-height: 72px;
+  border: 1px solid #e8e0d4;
+  border-radius: 24px;
   padding: 10px;
-  background: color-mix(in srgb, var(--settings-card) 94%, transparent);
-  box-shadow: 0 -14px 48px rgba(0, 0, 0, 0.18);
+  background: #ffffff;
+  box-shadow: 0 -14px 48px rgba(45, 35, 20, 0.12);
   backdrop-filter: blur(18px);
 }
 
@@ -2036,15 +2055,23 @@ a {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  background: var(--settings-card);
-  color: var(--settings-card-text);
+  border: 0;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #111111;
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .admin-panel svg {
-  width: 18px;
-  height: 18px;
+  width: 26px;
+  height: 26px;
+  color: #8a837a;
+  stroke-width: 2.25;
+}
+
+.admin-panel button:first-child svg {
+  color: #f59e0b;
 }
 
 .editor-head {
@@ -2146,12 +2173,39 @@ a {
   margin-bottom: 22px;
 }
 
+.app-shell--stock .settings-header {
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  min-height: 78px;
+  margin-bottom: 14px;
+}
+
+.app-shell--stock .settings-header .icon-button {
+  width: 48px;
+  height: 48px;
+  border-color: #e8e0d4;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #111111;
+}
+
+.app-shell--stock .settings-header .icon-button svg {
+  width: 28px;
+  height: 28px;
+  stroke-width: 2.4;
+}
+
 .settings-header h1 {
   margin: 0;
   overflow-wrap: anywhere;
   text-align: center;
   font-size: 28px;
   line-height: 1.15;
+}
+
+.app-shell--stock .settings-header h1 {
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .settings-screen {
@@ -2522,47 +2576,178 @@ a {
   padding: 4px;
 }
 
-.stock-settings {
-  gap: 14px;
+.stock-page {
+  display: grid;
+  gap: 18px;
+  padding-bottom: 110px;
 }
 
-.stock-list {
+.stock-info-card {
   display: grid;
-  gap: 10px;
-}
-
-.stock-list-item {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr) 112px 120px;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 16px;
   align-items: center;
-  gap: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  padding: 8px;
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid #e8e0d4;
+  border-radius: 24px;
+  padding: 20px;
+  background: #ffffff;
+  box-shadow: 0 18px 40px rgba(45, 35, 20, 0.08);
 }
 
-.stock-list-item img,
-.stock-list-item .image-fallback {
-  width: 72px;
-  height: 56px;
-  border-radius: 10px;
+.stock-info-card__icon {
+  display: grid;
+  width: 68px;
+  height: 68px;
+  place-items: center;
+  border-radius: 999px;
+  background: #fff4e4;
+  color: #f59e0b;
+}
+
+.stock-info-card__icon svg {
+  width: 38px;
+  height: 38px;
+}
+
+.stock-info-card h2 {
+  margin: 0 0 8px;
+  color: #111111;
+  font-size: 24px;
+  line-height: 1.15;
+}
+
+.stock-info-card p {
+  margin: 0;
+  color: #111111;
+  font-size: 17px;
+  line-height: 1.45;
+}
+
+.stock-refresh-all {
+  display: inline-flex;
+  min-height: 72px;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  border: 0;
+  border-radius: 18px;
+  padding: 0 20px;
+  background: #f59e0b;
+  color: #ffffff;
+  box-shadow: 0 16px 28px rgba(245, 158, 11, 0.28);
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.stock-refresh-all svg {
+  width: 32px;
+  height: 32px;
+}
+
+.stock-card-list {
+  display: grid;
+  gap: 16px;
+}
+
+.stock-dish-card {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  border: 1px solid #e8e0d4;
+  border-radius: 24px;
+  padding: 20px;
+  background: #ffffff;
+  box-shadow: 0 18px 40px rgba(45, 35, 20, 0.08);
+}
+
+.stock-dish-card__image,
+.stock-dish-card .image-fallback {
+  width: 84px;
+  height: 84px;
+  border-radius: 16px;
   object-fit: cover;
 }
 
-.stock-list-item h3 {
-  margin: 0 0 4px;
-  color: var(--settings-card-text);
-  font-size: 15px;
+.stock-dish-card__body {
+  min-width: 0;
 }
 
-.stock-list-item label {
-  gap: 4px;
-  font-size: 12px;
+.stock-dish-card h3 {
+  margin: 0 0 14px;
+  overflow-wrap: anywhere;
+  color: #111111;
+  font-size: 22px;
+  line-height: 1.15;
 }
 
-.stock-list-item input {
-  min-height: 42px;
+.stock-dish-card p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 20px;
+  color: #111111;
+  font-size: 17px;
+}
+
+.stock-dish-card p span {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #f59e0b;
+  box-shadow: inset 0 0 0 4px #ffd99a;
+}
+
+.stock-dish-card p strong {
+  color: #f59e0b;
+  font-weight: 900;
+}
+
+.stock-dish-card label {
+  display: grid;
+  gap: 10px;
+  color: #111111;
+  font-size: 17px;
+}
+
+.stock-dish-card__controls {
+  display: grid;
+  grid-template-columns: minmax(82px, 112px) 64px minmax(106px, 1fr);
+  gap: 8px;
+}
+
+.stock-dish-card__controls input,
+.stock-dish-card__controls button {
+  min-width: 0;
+  height: 48px;
+  border: 1px solid #e8e0d4;
+  border-radius: 14px;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.stock-dish-card__controls input {
+  padding: 0 10px;
+  background: #ffffff;
+  color: #111111;
+  text-align: center;
+}
+
+.stock-dish-card__controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  background: #fff7ef;
+  color: #111111;
+}
+
+.stock-dish-card__controls button:last-child {
+  border-color: #f59e0b;
+  background: #f59e0b;
+  color: #ffffff;
+  font-size: 18px;
 }
 
 .danger-icon svg {
@@ -2733,6 +2918,10 @@ a {
 @media (max-width: 720px) {
   .app-shell {
     padding: 18px 14px 118px;
+  }
+
+  .app-shell--stock {
+    padding: 18px 16px 126px;
   }
 
   .top-bar {
@@ -2978,21 +3167,6 @@ a {
     grid-template-columns: 64px minmax(0, 1fr) 42px;
   }
 
-  .stock-list-item {
-    grid-template-columns: 64px minmax(0, 1fr);
-  }
-
-  .stock-list-item label,
-  .stock-list-item button {
-    grid-column: 1 / -1;
-  }
-
-  .stock-list-item img,
-  .stock-list-item .image-fallback {
-    width: 64px;
-    height: 52px;
-  }
-
   .settings-list-item--category > svg,
   .settings-list-item--category input[aria-label],
   .settings-list-item--cabin input[aria-label] {
@@ -3010,13 +3184,78 @@ a {
   }
 
   .admin-panel {
-    right: 10px;
-    bottom: 0;
-    left: 10px;
+    right: 16px;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    left: 16px;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    border-right: 0;
-    border-bottom: 0;
-    border-left: 0;
+    min-height: 76px;
+    border: 1px solid #e8e0d4;
+    border-radius: 24px;
+  }
+
+  .admin-panel button {
+    min-height: 54px;
+    gap: 6px;
+    font-size: 16px;
+  }
+
+  .admin-panel svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .stock-info-card {
+    grid-template-columns: 68px minmax(0, 1fr);
+    padding: 18px;
+  }
+
+  .stock-info-card h2 {
+    font-size: 21px;
+  }
+
+  .stock-info-card p {
+    font-size: 16px;
+  }
+
+  .stock-refresh-all {
+    min-height: 64px;
+    font-size: 22px;
+  }
+
+  .stock-dish-card {
+    grid-template-columns: 84px minmax(0, 1fr);
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .stock-dish-card h3 {
+    font-size: 20px;
+  }
+
+  .stock-dish-card p {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+    font-size: 16px;
+  }
+
+  .stock-dish-card label {
+    font-size: 16px;
+  }
+
+  .stock-dish-card__controls {
+    grid-template-columns: minmax(64px, 1fr) 52px minmax(88px, 1.05fr);
+    gap: 7px;
+  }
+
+  .stock-dish-card__controls input,
+  .stock-dish-card__controls button {
+    height: 48px;
+    font-size: 18px;
+  }
+
+  .stock-dish-card__controls button:last-child {
+    font-size: 16px;
   }
 
   .drink-modal,

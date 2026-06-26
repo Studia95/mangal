@@ -69,6 +69,9 @@ export type Product = {
   is_new: boolean;
   is_hit: boolean;
   is_hidden?: boolean;
+  daily_stock?: number;
+  current_stock?: number;
+  is_unlimited?: boolean;
   stock_count: number;
   category_id: string;
   category_ids?: string[];

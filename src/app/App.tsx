@@ -6,6 +6,7 @@ import {
   CakeSlice,
   Check,
   ChefHat,
+  ClipboardList,
   CloudUpload,
   Coffee,
   Cookie,
@@ -49,10 +50,12 @@ import {
   Users,
   Wheat,
   GripVertical,
+  RefreshCcw,
   X
 } from 'lucide-react';
 import JSZip from 'jszip';
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { Toaster, toast } from 'sonner';
 import { cabins as demoCabins, categories as demoCategories, products as demoProducts, restaurant as demoRestaurant } from '../data/catalog';
 import type { Cabin, CatalogTag, Category, Product, Restaurant, ThemeSettings } from '../entities/models';
 import { DishEditorPage } from '../features/dish-editor/DishEditorPage';
@@ -144,6 +147,17 @@ const defaultTags: CatalogTag[] = [
 
 const makeId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 const stockTargetsStorageKey = 'mangal-stock-targets';
+
+const getCurrentStock = (product: Product) => product.current_stock ?? product.stock_count ?? 0;
+const getDailyStock = (product: Product) => product.daily_stock ?? product.stock_count ?? 0;
+const isLimitedProduct = (product: Product) => !product.is_unlimited;
+const applyStockValues = (product: Product, dailyStock: number, currentStock = dailyStock): Product => ({
+  ...product,
+  daily_stock: dailyStock,
+  current_stock: currentStock,
+  stock_count: currentStock,
+  is_unlimited: product.is_unlimited ?? false
+});
 
 const getProductCategoryIds = (product: Product) =>
   product.category_ids?.length ? product.category_ids : [product.category_id];
@@ -596,7 +610,8 @@ function ProductTile({
 }) {
   const add = useCartStore((state) => state.add);
   const isAdmin = useAuthStore((state) => state.isAdmin);
-  const soldOut = product.stock_count <= 0;
+  const currentStock = getCurrentStock(product);
+  const soldOut = isLimitedProduct(product) && currentStock <= 0;
 
   return (
     <article
@@ -620,8 +635,8 @@ function ProductTile({
             <button
               type="button"
               aria-label="Минус один остаток"
-              disabled={product.stock_count <= 0}
-              onClick={() => onStockChange?.(product.id, Math.max(0, product.stock_count - 1))}
+              disabled={!isLimitedProduct(product) || currentStock <= 0}
+              onClick={() => onStockChange?.(product.id, Math.max(0, currentStock - 1))}
             >
               -1
             </button>
@@ -644,7 +659,9 @@ function ProductTile({
             <button type="button" aria-label="Удалить" onClick={() => onDelete?.(product.id)}>
               <Trash2 />
             </button>
-            <span className="admin-stock-count">Остаток: {product.stock_count}</span>
+            <span className="admin-stock-count">
+              Остаток: {isLimitedProduct(product) ? currentStock : 'без лимита'}
+            </span>
           </div>
         )}
       </div>
@@ -1218,8 +1235,8 @@ function ProductScreen({
         ))}
       </section>
 
-      <button className="primary-wide" type="button" onClick={addProduct} disabled={product.stock_count <= 0}>
-        {product.stock_count <= 0 ? 'Закончилось' : `Добавить в корзину - ${formatPrice(product.price)}`}
+      <button className="primary-wide" type="button" onClick={addProduct} disabled={isLimitedProduct(product) && getCurrentStock(product) <= 0}>
+        {isLimitedProduct(product) && getCurrentStock(product) <= 0 ? 'Закончилось' : `Добавить в корзину - ${formatPrice(product.price)}`}
       </button>
       {isFlowProduct && flowAction?.selectedId && (
         <button className="flow-continue-bar flow-continue-bar--inline" type="button" onClick={flowAction.onContinue}>
@@ -1988,72 +2005,84 @@ function DesignSettings({ theme, onChange }: { theme: ThemeSettings; onChange: (
 
 function StockSettings({
   products,
-  targets,
-  onApply
+  onApplyOne,
+  onApplyAll,
+  onDecrement
 }: {
   products: Product[];
-  targets: StockTargets;
-  onApply: (updates: StockTargets) => void;
+  onApplyOne: (productId: string, dailyStock: number) => void;
+  onApplyAll: () => void;
+  onDecrement: (productId: string) => void;
 }) {
   const [draft, setDraft] = useState<Record<string, string>>({});
+  const limitedProducts = useMemo(() => products.filter(isLimitedProduct), [products]);
 
   useEffect(() => {
     setDraft(
       Object.fromEntries(
-        products.map((product) => [product.id, String(targets[product.id] ?? product.stock_count)])
+        limitedProducts.map((product) => [product.id, String(getDailyStock(product))])
       )
     );
-  }, [products, targets]);
+  }, [limitedProducts]);
 
   const getQuantity = (productId: string) => {
     const value = Number(draft[productId]);
     return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
   };
 
-  const applyOne = (productId: string) => {
-    onApply({ [productId]: getQuantity(productId) });
-  };
-
-  const applyAll = () => {
-    onApply(Object.fromEntries(products.map((product) => [product.id, getQuantity(product.id)])));
-  };
-
   return (
-    <main className="settings-screen">
-      <section className="settings-form-card stock-settings">
-        <div className="settings-section-head">
-          <div>
-            <h2>Обновить блюда</h2>
-            <p>Задайте остатки на день. Кнопка -1 меняет текущий остаток, а здесь хранится дневная норма.</p>
-          </div>
+    <main className="stock-page">
+      <section className="stock-info-card">
+        <span className="stock-info-card__icon">
+          <ClipboardList />
+        </span>
+        <div>
+          <h2>Обновить блюда</h2>
+          <p>Задайте остаток на день. Кнопка -1 меняет текущий остаток, а здесь хранится дневная норма.</p>
         </div>
-        <button className="primary-wide" type="button" onClick={applyAll}>
-          Обновить полностью
-        </button>
-        <div className="stock-list">
-          {products.map((product) => (
-            <article className="stock-list-item" key={product.id}>
-              <SafeImage src={product.image_url} alt={product.title} />
-              <div>
+      </section>
+
+      <button className="stock-refresh-all" type="button" onClick={onApplyAll}>
+        <RefreshCcw />
+        Обновить полностью
+      </button>
+
+      <section className="stock-card-list">
+        {limitedProducts.map((product) => {
+          const currentStock = getCurrentStock(product);
+          return (
+            <article className="stock-dish-card" key={product.id}>
+              <SafeImage className="stock-dish-card__image" src={product.image_url} alt={product.title} />
+              <div className="stock-dish-card__body">
                 <h3>{product.title}</h3>
-                <small>Сейчас осталось: {product.stock_count}</small>
+                <p>
+                  <span aria-hidden="true" />
+                  Сейчас осталось:{' '}
+                  <strong>{currentStock <= 0 ? 'Закончилось' : currentStock}</strong>
+                </p>
+                <label>
+                  Норма на день
+                  <div className="stock-dish-card__controls">
+                    <input
+                      inputMode="numeric"
+                      min={0}
+                      placeholder="0"
+                      type="number"
+                      value={draft[product.id] ?? ''}
+                      onChange={(event) => setDraft((current) => ({ ...current, [product.id]: event.target.value }))}
+                    />
+                    <button type="button" onClick={() => onDecrement(product.id)} aria-label={`Уменьшить остаток ${product.title} на 1`}>
+                      -1
+                    </button>
+                    <button type="button" onClick={() => onApplyOne(product.id, getQuantity(product.id))}>
+                      Обновить
+                    </button>
+                  </div>
+                </label>
               </div>
-              <label>
-                Норма
-                <input
-                  inputMode="numeric"
-                  min={0}
-                  type="number"
-                  value={draft[product.id] ?? ''}
-                  onChange={(event) => setDraft((current) => ({ ...current, [product.id]: event.target.value }))}
-                />
-              </label>
-              <button className="ghost-wide" type="button" onClick={() => applyOne(product.id)}>
-                Обновить
-              </button>
             </article>
-          ))}
-        </div>
+          );
+        })}
       </section>
     </main>
   );
@@ -2328,7 +2357,7 @@ function AppContent() {
   const [localCabins, setLocalCabins] = useState<Cabin[]>(demoCabins);
   const [localTags, setLocalTags] = useState<CatalogTag[]>(defaultTags);
   const [localRestaurant, setLocalRestaurant] = useState<Restaurant>(demoRestaurant);
-  const [stockTargets, setStockTargets] = useState<StockTargets>(() => loadStockTargets());
+  const [, setStockTargets] = useState<StockTargets>(() => loadStockTargets());
   const items = useCartStore((state) => state.items);
   const clearCart = useCartStore((state) => state.clear);
   const cartCount = selectCartCount(items);
@@ -2352,12 +2381,16 @@ function AppContent() {
       updateTheme(data.theme);
     }
     if (data?.products) {
-      setLocalProducts(data.products);
+      setLocalProducts(
+        data.products.map((product) =>
+          applyStockValues(product, getDailyStock(product), getCurrentStock(product))
+        )
+      );
       setStockTargets((current) => {
         const next = { ...current };
         data.products.forEach((product) => {
           if (next[product.id] === undefined) {
-            next[product.id] = product.stock_count;
+            next[product.id] = getDailyStock(product);
           }
         });
         saveStockTargets(next);
@@ -2414,21 +2447,22 @@ function AppContent() {
   };
 
   const saveProduct = (product: Product) => {
+    const normalizedProduct = applyStockValues(product, getDailyStock(product), getCurrentStock(product));
     setLocalProducts((current) => {
-      const exists = current.some((item) => item.id === product.id);
-      return exists ? current.map((item) => (item.id === product.id ? product : item)) : [product, ...current];
+      const exists = current.some((item) => item.id === normalizedProduct.id);
+      return exists ? current.map((item) => (item.id === normalizedProduct.id ? normalizedProduct : item)) : [normalizedProduct, ...current];
     });
-    if (selectedProduct?.id === product.id) {
-      setSelectedProduct(product);
+    if (selectedProduct?.id === normalizedProduct.id) {
+      setSelectedProduct(normalizedProduct);
     }
     setEditingProduct(null);
     setAdminEditor(null);
     setStockTargets((current) => {
-      const next = { ...current, [product.id]: product.stock_count };
+      const next = { ...current, [normalizedProduct.id]: getDailyStock(normalizedProduct) };
       saveStockTargets(next);
       return next;
     });
-    persist(saveProductToSupabase(product));
+    persist(saveProductToSupabase(normalizedProduct));
   };
 
   const deleteProduct = (productId: string) => {
@@ -2459,21 +2493,21 @@ function AppContent() {
   };
 
   const updateProductStock = (productId: string, stockCount: number) => {
+    const normalizedStock = Math.max(0, Math.floor(Number(stockCount) || 0));
     setLocalProducts((current) =>
-      current.map((product) => (product.id === productId ? { ...product, stock_count: stockCount } : product))
+      current.map((product) =>
+        product.id === productId ? { ...product, current_stock: normalizedStock, stock_count: normalizedStock } : product
+      )
     );
     if (selectedProduct?.id === productId) {
-      setSelectedProduct((current) => (current ? { ...current, stock_count: stockCount } : current));
+      setSelectedProduct((current) => (current ? { ...current, current_stock: normalizedStock, stock_count: normalizedStock } : current));
     }
-    persist(updateProductInSupabase(productId, { stock_count: stockCount }));
+    persist(updateProductInSupabase(productId, { current_stock: normalizedStock, stock_count: normalizedStock }));
   };
 
-  const applyProductStocks = (updates: StockTargets) => {
+  const applyProductStocks = (updates: StockTargets, message = 'Обновлено') => {
     const normalized = Object.fromEntries(
-      Object.entries(updates).map(([productId, stockCount]) => [
-        productId,
-        Math.max(0, Math.floor(Number(stockCount) || 0))
-      ])
+      Object.entries(updates).map(([productId, stockCount]) => [productId, Math.max(0, Math.floor(Number(stockCount) || 0))])
     );
     setStockTargets((current) => {
       const next = { ...current, ...normalized };
@@ -2482,19 +2516,27 @@ function AppContent() {
     });
     setLocalProducts((current) =>
       current.map((product) =>
-        normalized[product.id] === undefined ? product : { ...product, stock_count: normalized[product.id] }
+        normalized[product.id] === undefined ? product : applyStockValues(product, normalized[product.id])
       )
     );
     if (selectedProduct && normalized[selectedProduct.id] !== undefined) {
-      setSelectedProduct({ ...selectedProduct, stock_count: normalized[selectedProduct.id] });
+      setSelectedProduct(applyStockValues(selectedProduct, normalized[selectedProduct.id]));
     }
+    toast.success(message);
     persist(
       Promise.all(
         Object.entries(normalized).map(([productId, stockCount]) =>
-          updateProductInSupabase(productId, { stock_count: stockCount })
+          updateProductInSupabase(productId, { daily_stock: stockCount, current_stock: stockCount, stock_count: stockCount })
         )
       ).then(() => undefined)
     );
+  };
+
+  const refreshAllProductStocks = () => {
+    const updates = Object.fromEntries(
+      catalog.products.filter(isLimitedProduct).map((product) => [product.id, getDailyStock(product)])
+    );
+    applyProductStocks(updates, 'Остатки обновлены');
   };
 
   const saveRestaurant = (value: Restaurant) => {
@@ -2638,7 +2680,16 @@ function AppContent() {
       )}
       {screen === 'settings-design' && <DesignSettings theme={themeStore} onChange={saveTheme} />}
       {screen === 'settings-stock' && (
-        <StockSettings products={catalog.products} targets={stockTargets} onApply={applyProductStocks} />
+        <StockSettings
+          products={catalog.products}
+          onApplyOne={(productId, dailyStock) => applyProductStocks({ [productId]: dailyStock }, 'Обновлено')}
+          onApplyAll={refreshAllProductStocks}
+          onDecrement={(productId) => {
+            const product = catalog.products.find((item) => item.id === productId);
+            if (!product) return;
+            updateProductStock(productId, Math.max(0, getCurrentStock(product) - 1));
+          }}
+        />
       )}
       {screen === 'settings-backup' && (
         <BackupSettings
@@ -2650,8 +2701,11 @@ function AppContent() {
           theme={themeStore}
           onImport={(payload) => {
             if (payload.products) {
-              setLocalProducts(payload.products);
-              const nextTargets = Object.fromEntries(payload.products.map((product) => [product.id, product.stock_count]));
+              const products = payload.products.map((product) =>
+                applyStockValues(product, getDailyStock(product), getCurrentStock(product))
+              );
+              setLocalProducts(products);
+              const nextTargets = Object.fromEntries(products.map((product) => [product.id, getDailyStock(product)]));
               setStockTargets(nextTargets);
               saveStockTargets(nextTargets);
             }
@@ -2697,7 +2751,8 @@ function AppContent() {
   );
 
   return (
-    <div className="app-shell" style={applyTheme(themeStore)}>
+    <div className={screen === 'settings-stock' ? 'app-shell app-shell--stock' : 'app-shell'} style={applyTheme(themeStore)}>
+      <Toaster richColors position="top-center" />
       {screen.startsWith('settings') ? (
         renderSettings()
       ) : (
