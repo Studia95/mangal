@@ -2551,7 +2551,7 @@ a {
 }
 
 .settings-list-item--category {
-  grid-template-columns: 24px 76px minmax(120px, 0.8fr) minmax(128px, 0.8fr) 126px 112px minmax(160px, 1.2fr) 42px 42px 42px;
+  grid-template-columns: 24px 76px minmax(120px, 0.8fr) minmax(128px, 0.8fr) 126px 126px 112px minmax(160px, 1.2fr) 42px 42px 42px;
 }
 
 .settings-list-item--cabin {

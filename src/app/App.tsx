@@ -94,12 +94,13 @@ type SettingsScreen = 'settings' | 'settings-profile' | 'settings-categories' | 
 type Screen = 'home' | 'catalog' | 'drinks' | 'product' | 'checkout' | SettingsScreen;
 type ProductFlag = 'is_popular' | 'is_hidden';
 type OrderFlowState = {
-  step: 'sauce' | 'drink' | 'done';
-  selectedSauce?: string;
-  selectedDrink?: string;
+  step: 'category' | 'done';
+  categoryId?: string;
+  selectedByCategory: Record<string, string | undefined>;
 };
 type FlowAction = {
-  type: 'sauce' | 'drink';
+  categoryId: string;
+  categoryName: string;
   selectedId?: string;
   onProductAdd: (product: Product) => void;
   onContinue: () => void;
@@ -162,6 +163,21 @@ const applyStockValues = (product: Product, dailyStock: number, currentStock = d
 
 const getProductCategoryIds = (product: Product) =>
   product.category_ids?.length ? product.category_ids : [product.category_id];
+
+const isProductInCategory = (product: Product, categoryId: string) =>
+  getProductCategoryIds(product).includes(categoryId);
+
+const getOrderFlowCategories = (categories: Category[]) =>
+  categories.filter((category) => category.kind !== 'space' && category.showInOrderFlow === true);
+
+const makeLoadingRestaurant = (catalogSlug: string): Restaurant => ({
+  ...demoRestaurant,
+  id: catalogSlug,
+  name: catalogSlug === 'mangal' ? demoRestaurant.name : '',
+  subtitle: catalogSlug === 'mangal' ? demoRestaurant.subtitle : '',
+  logo_url: '',
+  banner_url: ''
+});
 
 const loadStockTargets = (): StockTargets => {
   try {
@@ -1054,6 +1070,7 @@ function CatalogScreen({
   const foodCategories = categories.filter((category) => category.kind !== 'space');
   const visibleProducts = isAdmin ? products : products.filter((product) => !product.is_hidden);
   const hasSauces = visibleProducts.some(isSauceProduct);
+  const isFlowCategory = flowAction?.categoryId === active;
 
   useEffect(() => {
     setActive(initialCategory);
@@ -1109,11 +1126,11 @@ function CatalogScreen({
             onDelete={onDeleteProduct}
             onToggle={onToggleProduct}
             onStockChange={onStockChange}
-            onAdd={flowAction?.type === 'sauce' && active === 'sauces' ? flowAction.onProductAdd : undefined}
+            onAdd={isFlowCategory ? flowAction?.onProductAdd : undefined}
           />
         ))}
       </section>
-      {flowAction?.type === 'sauce' && active === 'sauces' && flowAction.selectedId && (
+      {isFlowCategory && flowAction?.selectedId && (
         <button className="flow-continue-bar" type="button" onClick={flowAction.onContinue}>
           Продолжить <ArrowRight />
         </button>
@@ -1147,7 +1164,13 @@ function DrinksScreen({
   const isAdmin = useAuthStore((state) => state.isAdmin);
   const visibleProducts = isAdmin ? products : products.filter((product) => !product.is_hidden);
   const drinkCategories = categories.filter((category) => category.kind === 'drink');
-  const drinks = visibleProducts.filter((product) => product.drink_type && (active === 'all' || getProductCategoryIds(product).includes(active)));
+  const drinkCategoryIds = new Set(drinkCategories.map((category) => category.id));
+  const drinks = visibleProducts.filter((product) => {
+    const productCategoryIds = getProductCategoryIds(product);
+    const isDrink = Boolean(product.drink_type) || productCategoryIds.some((categoryId) => drinkCategoryIds.has(categoryId));
+    return isDrink && (active === 'all' || productCategoryIds.includes(active));
+  });
+  const isFlowCategory = flowAction?.categoryId === active;
 
   useEffect(() => {
     setActive(initialCategory);
@@ -1176,11 +1199,11 @@ function DrinksScreen({
             onDelete={onDeleteProduct}
             onToggle={onToggleProduct}
             onStockChange={onStockChange}
-            onAdd={flowAction?.type === 'drink' ? flowAction.onProductAdd : undefined}
+            onAdd={isFlowCategory ? flowAction?.onProductAdd : undefined}
           />
         ))}
       </section>
-      {flowAction?.type === 'drink' && flowAction.selectedId && (
+      {isFlowCategory && flowAction?.selectedId && (
         <button className="flow-continue-bar" type="button" onClick={flowAction.onContinue}>
           Продолжить <ArrowRight />
         </button>
@@ -1205,9 +1228,7 @@ function ProductScreen({
   const items = useCartStore((state) => state.items);
   const quantity = items.find((item) => item.product.id === product.id)?.quantity ?? 0;
   const pairs = product.pair_ids.map((id) => products.find((item) => item.id === id)).filter((item): item is Product => Boolean(item));
-  const isFlowProduct =
-    (flowAction?.type === 'sauce' && isSauceProduct(product)) ||
-    (flowAction?.type === 'drink' && Boolean(product.drink_type));
+  const isFlowProduct = Boolean(flowAction && isProductInCategory(product, flowAction.categoryId));
 
   const addProduct = () => {
     add(product);
@@ -1420,23 +1441,23 @@ function CheckoutScreen({ restaurant, cabins, onSubmitOrder }: { restaurant: Res
 }
 
 function UpsellReminder({
-  type,
+  category,
   products,
   selectedId,
   onSkip,
   onBrowse,
   onDismiss
 }: {
-  type: 'sauce' | 'drink';
+  category: Category;
   products: Product[];
   selectedId?: string;
   onSkip: () => void;
   onBrowse: (product?: Product) => void;
   onDismiss: () => void;
 }) {
-  const isSauces = type === 'sauce';
+  const isDrinks = category.kind === 'drink';
   const suggestions = products
-    .filter((product) => (isSauces ? isSauceProduct(product) : Boolean(product.drink_type)))
+    .filter((product) => isProductInCategory(product, category.id))
     .slice(0, 4);
 
   return (
@@ -1446,9 +1467,9 @@ function UpsellReminder({
         <button className="flow-modal__close" type="button" onClick={onDismiss} aria-label="Закрыть">
           <X />
         </button>
-        {isSauces ? <ChefHat className="modal-icon" /> : <Coffee className="modal-icon" />}
-        <h2>{isSauces ? 'Выберите соусы' : 'Выберите напитки'}</h2>
-        <p>{isSauces ? 'Откройте категорию и выберите соус к заказу.' : 'Откройте категорию и выберите напиток к заказу.'}</p>
+        {isDrinks ? <Coffee className="modal-icon" /> : <ChefHat className="modal-icon" />}
+        <h2>{category.name}</h2>
+        <p>Откройте категорию и добавьте к заказу.</p>
         <div className="modal-drinks">
           {suggestions.map((product) => (
             <article className="flow-option-card" key={product.id} onClick={() => onBrowse(product)}>
@@ -1459,16 +1480,16 @@ function UpsellReminder({
         </div>
         {suggestions.length === 0 && (
           <p className="modal-empty">
-            {isSauces ? 'Соусов пока нет в каталоге.' : 'Напитков пока нет в каталоге.'}
+            В этой категории пока нет товаров.
           </p>
         )}
         {!selectedId && (
           <button className="primary-wide" type="button" onClick={() => onBrowse()}>
-            {isSauces ? 'Выбрать соус' : 'Выбрать напиток'}
+            Выбрать
           </button>
         )}
         <button className="ghost-wide" type="button" onClick={onSkip}>
-          {isSauces ? 'Продолжить без соуса' : 'Продолжить без напитка'}
+          Продолжить без выбора
         </button>
       </section>
     </div>
@@ -1790,6 +1811,7 @@ function CategoriesSettings({
                 icon: 'flame',
                 kind: 'food',
                 showOnHome: true,
+                showInOrderFlow: false,
                 image: demoCategories[0]?.image ?? ''
               }
             ]);
@@ -1848,6 +1870,20 @@ function CategoriesSettings({
                   }
                 />
                 <span>На главной</span>
+              </label>
+              <label className="category-home-toggle">
+                <input
+                  type="checkbox"
+                  checked={category.showInOrderFlow === true}
+                  onChange={(event) =>
+                    onChangeCategories(
+                      categories.map((item) =>
+                        item.id === category.id ? { ...item, showInOrderFlow: event.target.checked } : item
+                      )
+                    )
+                  }
+                />
+                <span>После далее</span>
               </label>
               <select
                 value={category.kind}
@@ -2463,12 +2499,12 @@ function AppContent() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showLogin, setShowLogin] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [orderFlow, setOrderFlow] = useState<OrderFlowState>({ step: 'done' });
+  const [orderFlow, setOrderFlow] = useState<OrderFlowState>({ step: 'done', selectedByCategory: {} });
   const [localProducts, setLocalProducts] = useState<Product[]>(demoProducts);
   const [localCategories, setLocalCategories] = useState<Category[]>(demoCategories);
   const [localCabins, setLocalCabins] = useState<Cabin[]>(demoCabins);
   const [localTags, setLocalTags] = useState<CatalogTag[]>(defaultTags);
-  const [localRestaurant, setLocalRestaurant] = useState<Restaurant>(demoRestaurant);
+  const [localRestaurant, setLocalRestaurant] = useState<Restaurant>(() => makeLoadingRestaurant(catalogSlug));
   const [, setStockTargets] = useState<StockTargets>(() => loadStockTargets());
   const items = useCartStore((state) => state.items);
   const clearCart = useCartStore((state) => state.clear);
@@ -2531,6 +2567,10 @@ function AppContent() {
     restaurant: localRestaurant,
     source: data?.source ?? ('demo' as const)
   };
+  const flowCategories = useMemo(() => getOrderFlowCategories(catalog.categories), [catalog.categories]);
+  const activeFlowCategory = orderFlow.categoryId
+    ? flowCategories.find((category) => category.id === orderFlow.categoryId)
+    : undefined;
 
   const title = useMemo(() => {
     if (screen === 'catalog') return 'Все товары';
@@ -2548,6 +2588,14 @@ function AppContent() {
     if (screen === 'settings-delete') return 'Удаление каталога';
     return 'Настройки';
   }, [screen]);
+
+  if (catalogSlug !== 'mangal' && isLoading && !data) {
+    return (
+      <div className="app-shell app-shell--loading" style={applyTheme(themeStore)}>
+        <Toaster richColors position="top-center" />
+      </div>
+    );
+  }
 
   const openProduct = (product: Product) => {
     setSelectedProduct(product);
@@ -2687,26 +2735,50 @@ function AppContent() {
   };
 
   const finishOrderFlow = () => {
-    setOrderFlow((current) => ({ ...current, step: 'done' }));
+    setOrderFlow((current) => ({ ...current, step: 'done', categoryId: undefined }));
     setScreen('checkout');
   };
 
   const continueOrderFlow = () => {
-    if (orderFlow.step === 'sauce') {
-      setOrderFlow((current) => ({ ...current, step: 'drink' }));
-      setScreen('checkout');
+    const currentIndex = flowCategories.findIndex((category) => category.id === orderFlow.categoryId);
+    const nextCategory = currentIndex >= 0 ? flowCategories[currentIndex + 1] : undefined;
+    if (!nextCategory) {
+      finishOrderFlow();
       return;
     }
-    finishOrderFlow();
+    setOrderFlow((current) => ({ ...current, step: 'category', categoryId: nextCategory.id }));
+    if (nextCategory.kind === 'drink') {
+      setDrinkCategory(nextCategory.id);
+      setScreen('drinks');
+      return;
+    }
+    setCatalogCategory(nextCategory.id);
+    setScreen('catalog');
   };
 
   const startOrderFlow = () => {
     if (screen === 'checkout') {
       return;
     }
-    const selectedSauce = items.find((item) => isSauceProduct(item.product))?.product.id;
-    const selectedDrink = items.find((item) => item.product.drink_type)?.product.id;
-    setOrderFlow({ step: 'sauce', selectedSauce, selectedDrink });
+    const firstCategory = flowCategories[0];
+    if (!firstCategory) {
+      finishOrderFlow();
+      return;
+    }
+    const selectedByCategory = Object.fromEntries(
+      flowCategories.map((category) => [
+        category.id,
+        items.find((item) => isProductInCategory(item.product, category.id))?.product.id
+      ])
+    );
+    setOrderFlow({ step: 'category', categoryId: firstCategory.id, selectedByCategory });
+    if (firstCategory.kind === 'drink') {
+      setDrinkCategory(firstCategory.id);
+      setScreen('drinks');
+      return;
+    }
+    setCatalogCategory(firstCategory.id);
+    setScreen('catalog');
   };
 
   const continueFromCartBar = () => {
@@ -2724,33 +2796,45 @@ function AppContent() {
   };
 
   const openFlowCategory = (product?: Product) => {
-    if (orderFlow.step === 'sauce') {
-      setCatalogCategory('sauces');
-      setScreen('catalog');
+    const category = activeFlowCategory;
+    if (!category) return;
+    if (category.kind === 'drink') {
+      setDrinkCategory(product?.category_id ?? category.id);
+      setScreen('drinks');
       return;
     }
-    if (orderFlow.step === 'drink') {
-      setDrinkCategory(product?.category_id ?? 'all');
-      setScreen('drinks');
-    }
+    setCatalogCategory(product?.category_id ?? category.id);
+    setScreen('catalog');
   };
 
   const selectFlowProduct = (product: Product) => {
-    if (orderFlow.step === 'sauce' && isSauceProduct(product)) {
-      setOrderFlow((current) => ({ ...current, selectedSauce: product.id }));
+    const category = activeFlowCategory;
+    if (!category || !isProductInCategory(product, category.id)) {
       return;
     }
-    if (orderFlow.step === 'drink' && product.drink_type) {
-      setOrderFlow((current) => ({ ...current, selectedDrink: product.id }));
-    }
+    setOrderFlow((current) => ({
+      ...current,
+      selectedByCategory: { ...current.selectedByCategory, [category.id]: product.id }
+    }));
   };
+
+  const makeFlowAction = (category?: Category): FlowAction | undefined =>
+    category
+      ? {
+          categoryId: category.id,
+          categoryName: category.name,
+          selectedId: orderFlow.selectedByCategory[category.id],
+          onProductAdd: selectFlowProduct,
+          onContinue: continueOrderFlow
+        }
+      : undefined;
 
   const resetCatalog = () => {
     setLocalProducts([]);
     setLocalCategories([]);
     setLocalCabins([]);
     setLocalTags([]);
-    const emptyRestaurant = { ...demoRestaurant, name: 'Мангал', subtitle: '', whatsapp: '', instagram_url: '', address: '', mapLink: '' };
+    const emptyRestaurant = { ...demoRestaurant, id: catalogSlug, name: '', subtitle: '', whatsapp: '', instagram_url: '', address: '', mapLink: '' };
     setLocalRestaurant(emptyRestaurant);
     saveTheme({
       ...darkThemePreset,
@@ -2912,16 +2996,7 @@ function AppContent() {
               onDeleteProduct={deleteProduct}
               onToggleProduct={toggleProduct}
               onStockChange={updateProductStock}
-              flowAction={
-                orderFlow.step === 'sauce'
-                  ? {
-                      type: 'sauce',
-                      selectedId: orderFlow.selectedSauce,
-                      onProductAdd: selectFlowProduct,
-                      onContinue: continueOrderFlow
-                    }
-                  : undefined
-              }
+              flowAction={activeFlowCategory?.kind !== 'drink' ? makeFlowAction(activeFlowCategory) : undefined}
             />
           )}
           {screen === 'drinks' && (
@@ -2934,16 +3009,7 @@ function AppContent() {
               onDeleteProduct={deleteProduct}
               onToggleProduct={toggleProduct}
               onStockChange={updateProductStock}
-              flowAction={
-                orderFlow.step === 'drink'
-                  ? {
-                      type: 'drink',
-                      selectedId: orderFlow.selectedDrink,
-                      onProductAdd: selectFlowProduct,
-                      onContinue: continueOrderFlow
-                    }
-                  : undefined
-              }
+              flowAction={activeFlowCategory?.kind === 'drink' ? makeFlowAction(activeFlowCategory) : undefined}
             />
           )}
           {screen === 'product' && selectedProduct && (
@@ -2951,16 +3017,7 @@ function AppContent() {
               product={selectedProduct}
               products={catalog.products}
               onOpenProduct={(product) => setSelectedProduct(product)}
-              flowAction={
-                orderFlow.step === 'sauce' || orderFlow.step === 'drink'
-                  ? {
-                      type: orderFlow.step,
-                      selectedId: orderFlow.step === 'sauce' ? orderFlow.selectedSauce : orderFlow.selectedDrink,
-                      onProductAdd: selectFlowProduct,
-                      onContinue: continueOrderFlow
-                    }
-                  : undefined
-              }
+              flowAction={makeFlowAction(activeFlowCategory)}
             />
           )}
           {screen === 'checkout' && (
@@ -2969,7 +3026,7 @@ function AppContent() {
               cabins={catalog.cabins}
               onSubmitOrder={() => {
                 clearCart();
-                setOrderFlow({ step: 'done' });
+                setOrderFlow({ step: 'done', selectedByCategory: {} });
               }}
             />
           )}
@@ -3018,15 +3075,15 @@ function AppContent() {
           onSuccess={() => setScreen('settings')}
         />
       )}
-      {orderFlow.step !== 'done' && screen !== 'catalog' && screen !== 'drinks' && (
+      {orderFlow.step !== 'done' && activeFlowCategory && screen !== 'catalog' && screen !== 'drinks' && (
         <UpsellReminder
-          type={orderFlow.step}
+          category={activeFlowCategory}
           products={catalog.products}
-          selectedId={orderFlow.step === 'sauce' ? orderFlow.selectedSauce : orderFlow.selectedDrink}
+          selectedId={orderFlow.selectedByCategory[activeFlowCategory.id]}
           onSkip={continueOrderFlow}
           onBrowse={openFlowCategory}
           onDismiss={() => {
-            setOrderFlow({ step: 'done' });
+            setOrderFlow({ step: 'done', selectedByCategory: {} });
           }}
         />
       )}

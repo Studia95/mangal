@@ -49,6 +49,7 @@ export type Category = {
   icon: string;
   kind: 'food' | 'drink' | 'space';
   showOnHome?: boolean;
+  showInOrderFlow?: boolean;
 };
 
 export type CatalogTag = {

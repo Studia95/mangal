@@ -100,7 +100,7 @@ const mapPlatformRestaurant = (value: PlatformCatalogRow): Restaurant => ({
 const parseCategoryMeta = (value?: string | null) => {
   if (!value) return {};
   try {
-    return JSON.parse(value) as { showOnHome?: boolean; kind?: Category['kind'] };
+    return JSON.parse(value) as { showOnHome?: boolean; showInOrderFlow?: boolean; kind?: Category['kind'] };
   } catch {
     return {};
   }
@@ -115,7 +115,8 @@ const mapPlatformCategory = (value: PlatformCategoryRow): Category => {
     image: value.image_url ?? '',
     icon: value.icon ?? '',
     kind: meta.kind ?? (value.slug === 'cabins' ? 'space' : drinkCategorySlugs.has(value.slug) ? 'drink' : 'food'),
-    showOnHome: meta.showOnHome ?? true
+    showOnHome: meta.showOnHome ?? true,
+    showInOrderFlow: meta.showInOrderFlow ?? false
   };
 };
 
@@ -311,7 +312,8 @@ export async function loadCatalog(catalogSlug?: string) {
     restaurant: normalizeRestaurant(restaurantResult.data),
     categories: ((categoriesResult.data ?? categories) as Category[]).map((category) => ({
       ...category,
-      showOnHome: category.showOnHome ?? true
+      showOnHome: category.showOnHome ?? true,
+      showInOrderFlow: category.showInOrderFlow ?? false
     })),
     products: productsResult.data ?? products,
     cabins: cabinsResult.data ?? cabins,
@@ -360,6 +362,7 @@ const productToPlatformRow = (product: Product) => ({
 const categoryMeta = (value: Category) =>
   JSON.stringify({
     showOnHome: value.showOnHome !== false,
+    showInOrderFlow: value.showInOrderFlow === true,
     kind: value.kind
   });
 
