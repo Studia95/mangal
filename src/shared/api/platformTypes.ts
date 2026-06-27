@@ -70,6 +70,24 @@ export type CreateClientResult = {
   email: string;
 };
 
+export type UpdateClientPayload = {
+  clientId: string;
+  companyName?: string;
+  ownerName?: string;
+  email?: string;
+  phone?: string;
+  password?: string;
+  status?: ClientStatus;
+  planId?: string;
+  subscriptionStatus?: SubscriptionStatus;
+  subscriptionEndsAt?: string | null;
+};
+
+export type UpdateClientResult = {
+  clientId: string;
+  email: string;
+};
+
 export type AuditLogEntry = {
   id: string;
   action: string;

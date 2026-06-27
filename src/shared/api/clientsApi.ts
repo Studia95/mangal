@@ -1,5 +1,13 @@
 import { supabase } from '../supabase';
-import type { ClientListParams, CreateClientPayload, CreateClientResult, PlatformClient, PlatformStats } from './platformTypes';
+import type {
+  ClientListParams,
+  CreateClientPayload,
+  CreateClientResult,
+  PlatformClient,
+  PlatformStats,
+  UpdateClientPayload,
+  UpdateClientResult
+} from './platformTypes';
 
 const demoClients: PlatformClient[] = [
   {
@@ -210,5 +218,22 @@ export async function createClient(payload: CreateClientPayload): Promise<Create
 
   if (error) throw new Error(await getFunctionErrorMessage(error));
   if (!data) throw new Error('Edge Function did not return client data.');
+  return data;
+}
+
+export async function updateClient(payload: UpdateClientPayload): Promise<UpdateClientResult> {
+  if (!supabase) {
+    return {
+      clientId: payload.clientId,
+      email: payload.email ?? 'demo@example.com'
+    };
+  }
+
+  const { data, error } = await supabase.functions.invoke<UpdateClientResult>('update-client', {
+    body: payload
+  });
+
+  if (error) throw new Error(await getFunctionErrorMessage(error));
+  if (!data) throw new Error('Edge Function did not return updated client data.');
   return data;
 }
