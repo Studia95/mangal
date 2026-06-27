@@ -117,6 +117,11 @@ const routeToPath = (route: PlatformRoute) => {
   return `${base}#/admin/${segment}`;
 };
 
+const privacyPolicyPath = () => {
+  const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+  return `${base}privacy`;
+};
+
 function useDebouncedValue<T>(value: T, delay = 350) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -917,7 +922,7 @@ function CreateClientForm({
           <label className="client-form__consent-option">
             <input {...register('adminConsentConfirmed')} type="checkbox" />
             <span>Клиент дал согласие на обработку персональных данных</span>
-            <a href="/privacy" target="_blank" rel="noreferrer">
+            <a href={privacyPolicyPath()} target="_blank" rel="noreferrer">
               <BookOpen />
               Прочитать политику
             </a>
