@@ -297,7 +297,20 @@ function PublicationBadge({ status }: { status: PlatformClient['catalogStatus'] 
 
 function ClientActions({ client, onEdit }: { client: PlatformClient; onEdit: (client: PlatformClient) => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const publicUrl = getCatalogPublicUrl(client.catalogSlug);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+
+    const closeMenu = () => setMenuOpen(false);
+    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('resize', closeMenu);
+    return () => {
+      window.removeEventListener('scroll', closeMenu, true);
+      window.removeEventListener('resize', closeMenu);
+    };
+  }, [menuOpen]);
 
   return (
     <div className="client-actions">
@@ -316,11 +329,27 @@ function ClientActions({ client, onEdit }: { client: PlatformClient; onEdit: (cl
         Копировать
       </button>
       <div className="client-actions-menu">
-        <button type="button" aria-label="Ещё" onClick={() => setMenuOpen((value) => !value)}>
+        <button
+          type="button"
+          aria-label="Ещё"
+          onClick={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect();
+            const panelWidth = 220;
+            const panelHeight = 176;
+            const left = Math.min(Math.max(12, rect.right - panelWidth), window.innerWidth - panelWidth - 12);
+            const hasSpaceBelow = rect.bottom + panelHeight + 12 < window.innerHeight;
+            const top = hasSpaceBelow ? rect.bottom + 8 : Math.max(12, rect.top - panelHeight - 8);
+            setMenuPosition({ top, left });
+            setMenuOpen((value) => !value);
+          }}
+        >
           <MoreHorizontal />
         </button>
         {menuOpen && (
-          <div className="client-actions-menu__panel">
+          <div
+            className="client-actions-menu__panel"
+            style={{ top: menuPosition.top, left: menuPosition.left }}
+          >
             <button
               type="button"
               onClick={() => {

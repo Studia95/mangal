@@ -597,12 +597,10 @@
 }
 
 .client-actions-menu__panel {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  right: 0;
-  z-index: 20;
+  position: fixed;
+  z-index: 80;
   display: grid;
-  min-width: 210px;
+  width: 220px;
   padding: 8px;
   border: 1px solid #e5e7eb;
   border-radius: 12px;

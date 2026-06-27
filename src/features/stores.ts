@@ -100,6 +100,8 @@ export const useAuthStore = create<AuthStore>((set) => ({
     const success = await signInAdmin(email, password, catalogSlug);
     if (success) {
       set({ isAdmin: true });
+    } else {
+      set({ isAdmin: false });
     }
     return success;
   },

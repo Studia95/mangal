@@ -156,18 +156,22 @@ export async function hasAdminSession(catalogSlug?: string) {
     const catalogId = await getPlatformCatalogId(normalizeCatalogSlug(catalogSlug));
     if (!catalogId) return false;
 
-    const { data: member } = await supabase
-      .from('catalog_members')
-      .select('role')
+    const { data: client } = await supabase
+      .from('clients')
+      .select('id')
       .eq('catalog_id', catalogId)
-      .eq('user_id', data.session.user.id)
-      .in('role', ['owner', 'admin', 'editor'])
+      .eq('owner_user_id', data.session.user.id)
+      .eq('email', data.session.user.email?.toLowerCase() ?? '')
       .maybeSingle();
 
-    return Boolean(member);
+    return Boolean(client);
   }
 
-  const { data: adminUser } = await supabase.from('admin_user').select('user_id').limit(1).maybeSingle();
+  const { data: adminUser } = await supabase
+    .from('admin_user')
+    .select('user_id')
+    .eq('user_id', data.session.user.id)
+    .maybeSingle();
   return Boolean(adminUser);
 }
 
