@@ -201,7 +201,7 @@
 
 .platform-page-head button,
 .mobile-create-client,
-.client-form footer button[type='submit'],
+.client-form-footer button[type='submit'],
 .client-success > button:first-of-type {
   display: inline-flex;
   min-height: 44px;
@@ -322,6 +322,21 @@
 .client-form input,
 .client-form select {
   padding: 0 12px;
+}
+
+.client-form input:focus,
+.client-form select:focus,
+.password-field button:focus-visible,
+.platform-sheet-head button:focus-visible,
+.client-form-footer button:focus-visible {
+  border-color: var(--platform-accent);
+  box-shadow: 0 0 0 4px rgba(91, 61, 244, 0.12);
+  outline: none;
+}
+
+.client-form input[aria-invalid='true'],
+.client-form select[aria-invalid='true'] {
+  border-color: #ef4444;
 }
 
 .client-filters select {
@@ -887,14 +902,17 @@
 }
 
 .platform-modal {
-  width: min(980px, 100%);
-  max-height: min(900px, calc(100vh - 48px));
+  width: min(900px, 95vw);
+  max-height: calc(100vh - 48px);
+  border-radius: 20px;
+  background: #fff;
   overflow: auto;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.2);
 }
 
 .client-form-shell,
 .client-success {
-  padding: 22px;
+  padding: 24px;
 }
 
 .platform-sheet-head {
@@ -910,6 +928,12 @@
   display: block;
 }
 
+.platform-sheet-head strong {
+  color: #111827;
+  font-size: 24px;
+  line-height: 1.15;
+}
+
 .platform-sheet-head small {
   margin-top: 4px;
   color: #667085;
@@ -917,24 +941,58 @@
 
 .platform-sheet-head button {
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   place-items: center;
-  border-radius: 10px;
-  background: #f1f5f9;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  color: #111827;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
 }
 
 .client-form {
+  display: grid;
+  gap: 24px;
+}
+
+.client-form-section {
+  display: grid;
+  gap: 16px;
+}
+
+.client-form-section h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.client-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 
+.client-form-grid--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .client-form label {
   display: grid;
-  gap: 7px;
+  gap: 8px;
   color: #334155;
   font-weight: 800;
+}
+
+.client-form label > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.client-form b {
+  color: #ef4444;
 }
 
 .client-form small {
@@ -950,7 +1008,7 @@
 
 .password-field {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 42px 42px 42px;
+  grid-template-columns: minmax(0, 1fr) 44px 44px 44px;
   gap: 8px;
 }
 
@@ -958,18 +1016,18 @@
   display: grid;
   place-items: center;
   border: 1px solid #d8dee9;
-  border-radius: 9px;
+  border-radius: 12px;
   background: #fff;
   color: #475569;
 }
 
 .client-form__disabled-option {
-  grid-column: 1 / -1;
-  grid-template-columns: 18px minmax(0, auto) 1fr;
+  grid-template-columns: 20px minmax(0, auto) 1fr;
   align-items: center;
   gap: 10px;
-  padding: 12px;
-  border-radius: 10px;
+  padding: 14px 16px;
+  border: 1px solid #eef2f7;
+  border-radius: 12px;
   background: #f8fafc;
 }
 
@@ -977,21 +1035,29 @@
   min-height: auto;
 }
 
-.client-form footer {
-  grid-column: 1 / -1;
+.client-form-footer {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid #eef2f7;
 }
 
-.client-form footer button {
+.client-form-footer button {
   min-height: 44px;
   padding: 0 18px;
-  border-radius: 10px;
-  background: #f1f5f9;
+  border-radius: 12px;
+  background: #fff;
   color: #111827;
   font-weight: 800;
+  box-shadow: inset 0 0 0 1px #d8dee9;
+}
+
+.client-form-footer button[type='submit'] {
+  border: 0;
+  background: var(--platform-accent);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(91, 61, 244, 0.22);
 }
 
 .client-success {
@@ -1235,7 +1301,9 @@
 
   .platform-modal {
     width: 100%;
+    max-width: 100%;
     max-height: 100vh;
+    border-radius: 0;
   }
 
   .client-form-shell,
@@ -1249,6 +1317,11 @@
     grid-template-columns: 1fr;
   }
 
+  .client-form-grid,
+  .client-form-grid--three {
+    grid-template-columns: 1fr;
+  }
+
   .client-form__disabled-option {
     grid-template-columns: 18px minmax(0, 1fr);
   }
@@ -1257,7 +1330,7 @@
     grid-column: 2;
   }
 
-  .client-form footer {
+  .client-form-footer {
     position: sticky;
     bottom: 0;
     display: grid;

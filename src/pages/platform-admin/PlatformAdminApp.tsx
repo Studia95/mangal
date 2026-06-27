@@ -25,7 +25,7 @@ import {
   Users,
   X
 } from 'lucide-react';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useForm } from 'react-hook-form';
 import { Toaster, toast } from 'sonner';
 import { createClient, getClients, getPlatformStats } from '../../shared/api/clientsApi';
@@ -674,7 +674,7 @@ function CreateClientForm({
     <div className="client-form-shell">
       <div className="platform-sheet-head">
         <div>
-          <strong>Добавить нового клиента</strong>
+          <strong id="create-client-title">Добавить нового клиента</strong>
           <small>Создание аккаунта, каталога и подписки</small>
         </div>
         <button type="button" onClick={onClose} aria-label="Закрыть">
@@ -682,118 +682,165 @@ function CreateClientForm({
         </button>
       </div>
       <form className="client-form" onSubmit={onSubmit}>
-        <label>
-          Название клиента
-          <input {...register('name')} placeholder="Например: Мой ресторан" />
-          {errors.name && <small>{errors.name.message}</small>}
-        </label>
-        <label>
-          Slug
-          <input {...register('slug')} placeholder="my-restaurant" />
-          <em>Будет доступно по ссылке: {getCatalogPublicUrl(slug || 'your-slug')}</em>
-          {errors.slug && <small>{errors.slug.message}</small>}
-        </label>
-        <label>
-          Email
-          <input {...register('email')} type="email" placeholder="client@example.com" autoComplete="email" />
-          {errors.email && <small>{errors.email.message}</small>}
-        </label>
-        <label>
-          Временный пароль
-          <span className="password-field">
-            <input {...register('password')} type={showPassword ? 'text' : 'password'} autoComplete="new-password" />
-            <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label="Показать пароль">
-              <Eye />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const nextPassword = generateSecurePassword();
-                setValue('password', nextPassword, { shouldValidate: true });
-              }}
-            >
-              <KeyRound />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                void copyText(password).then(() => toast.success('Пароль скопирован'));
-              }}
-            >
-              <Copy />
-            </button>
-          </span>
-          {errors.password && <small>{errors.password.message}</small>}
-        </label>
-        <label>
-          Шаблон
-          <select
-            {...register('templateVersionId')}
-            onChange={(event) => {
-              const template = templates.find((item) => item.templateVersionId === event.target.value);
-              setValue('templateVersionId', event.target.value, { shouldValidate: true });
-              setValue('businessType', template?.businessType ?? 'restaurant');
-            }}
-          >
-            {templates.map((template) => (
-              <option value={template.templateVersionId} key={template.templateVersionId}>
-                {template.templateName} v{template.version}
-              </option>
-            ))}
-          </select>
-          {selectedTemplate && (
-            <em>
-              {businessTypeLabels[selectedTemplate.businessType] ?? selectedTemplate.businessType}: {selectedTemplate.description}
-            </em>
-          )}
-          {errors.templateVersionId && <small>{errors.templateVersionId.message}</small>}
-        </label>
-        <label>
-          Имя владельца
-          <input {...register('ownerName')} placeholder="Имя владельца" />
-        </label>
-        <label>
-          Телефон
-          <input {...register('phone')} placeholder="+7 999 000-00-00" />
-        </label>
-        <label>
-          Тариф
-          <select {...register('planId')}>
-            <option value="trial">Пробный</option>
-            <option value="basic">Basic</option>
-            <option value="business">Business</option>
-            <option value="premium">Premium</option>
-          </select>
-        </label>
-        <label>
-          Статус оплаты
-          <select {...register('subscriptionStatus')}>
-            <option value="trial">Пробный период</option>
-            <option value="active">Оплачено</option>
-            <option value="past_due">Просрочено</option>
-            <option value="expired">Истекла</option>
-            <option value="cancelled">Отменена</option>
-          </select>
-        </label>
-        <label>
-          Дата окончания подписки
-          <input {...register('subscriptionEndsAt')} type="date" />
-        </label>
-        <label>
-          Статус клиента
-          <select {...register('status')}>
-            <option value="active">Активен</option>
-            <option value="inactive">Неактивен</option>
-            <option value="blocked">Заблокирован</option>
-            <option value="pending">Ожидает активации</option>
-          </select>
-        </label>
-        <label className="client-form__disabled-option">
-          <input {...register('sendEmail')} type="checkbox" disabled />
-          <span>Отправить данные клиенту на email</span>
-          <em>Будет доступно после настройки почтового сервиса</em>
-        </label>
-        <footer>
+        <section className="client-form-section">
+          <h3>Информация о клиенте</h3>
+          <div className="client-form-grid">
+            <label>
+              <span>
+                Название клиента <b>*</b>
+              </span>
+              <input {...register('name')} placeholder="Например: Мой ресторан" aria-invalid={Boolean(errors.name)} />
+              {errors.name && <small>{errors.name.message}</small>}
+            </label>
+            <label>
+              <span>
+                Slug (для ссылки) <b>*</b>
+              </span>
+              <input {...register('slug')} placeholder="my-restaurant" aria-invalid={Boolean(errors.slug)} />
+              <em>Будет доступно по ссылке: {getCatalogPublicUrl(slug || 'your-slug')}</em>
+              {errors.slug && <small>{errors.slug.message}</small>}
+            </label>
+            <label>
+              <span>
+                Email <b>*</b>
+              </span>
+              <input
+                {...register('email')}
+                type="email"
+                placeholder="client@example.com"
+                autoComplete="email"
+                aria-invalid={Boolean(errors.email)}
+              />
+              {errors.email && <small>{errors.email.message}</small>}
+            </label>
+            <label>
+              <span>
+                Временный пароль <b>*</b>
+              </span>
+              <span className="password-field">
+                <input
+                  {...register('password')}
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  aria-invalid={Boolean(errors.password)}
+                />
+                <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label="Показать пароль">
+                  <Eye />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextPassword = generateSecurePassword();
+                    setValue('password', nextPassword, { shouldValidate: true });
+                  }}
+                  aria-label="Сгенерировать пароль"
+                >
+                  <KeyRound />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void copyText(password).then(() => toast.success('Пароль скопирован'));
+                  }}
+                  aria-label="Скопировать пароль"
+                >
+                  <Copy />
+                </button>
+              </span>
+              {errors.password && <small>{errors.password.message}</small>}
+            </label>
+          </div>
+        </section>
+
+        <section className="client-form-section">
+          <h3>Каталог и шаблон</h3>
+          <div className="client-form-grid">
+            <label>
+              <span>
+                Шаблон <b>*</b>
+              </span>
+              <select
+                {...register('templateVersionId')}
+                aria-invalid={Boolean(errors.templateVersionId)}
+                onChange={(event) => {
+                  const template = templates.find((item) => item.templateVersionId === event.target.value);
+                  setValue('templateVersionId', event.target.value, { shouldValidate: true });
+                  setValue('businessType', template?.businessType ?? 'restaurant');
+                }}
+              >
+                {templates.map((template) => (
+                  <option value={template.templateVersionId} key={template.templateVersionId}>
+                    {template.templateName} v{template.version}
+                  </option>
+                ))}
+              </select>
+              {selectedTemplate && (
+                <em>
+                  {businessTypeLabels[selectedTemplate.businessType] ?? selectedTemplate.businessType}: {selectedTemplate.description}
+                </em>
+              )}
+              {errors.templateVersionId && <small>{errors.templateVersionId.message}</small>}
+            </label>
+            <label>
+              Имя владельца
+              <input {...register('ownerName')} placeholder="Имя владельца" />
+            </label>
+          </div>
+        </section>
+
+        <section className="client-form-section">
+          <h3>Контакты и тариф</h3>
+          <div className="client-form-grid client-form-grid--three">
+            <label>
+              Телефон
+              <input {...register('phone')} placeholder="+7 999 000-00-00" inputMode="tel" />
+            </label>
+            <label>
+              <span>
+                Тариф <b>*</b>
+              </span>
+              <select {...register('planId')}>
+                <option value="trial">Пробный</option>
+                <option value="basic">Базовый</option>
+                <option value="business">Про</option>
+              </select>
+            </label>
+            <label>
+              <span>
+                Статус оплаты <b>*</b>
+              </span>
+              <select {...register('subscriptionStatus')}>
+                <option value="trial">Пробный период</option>
+                <option value="active">Оплачен</option>
+                <option value="past_due">Просрочен</option>
+              </select>
+            </label>
+            <label>
+              Дата окончания
+              <input {...register('subscriptionEndsAt')} type="date" />
+            </label>
+            <label>
+              <span>
+                Статус клиента <b>*</b>
+              </span>
+              <select {...register('status')}>
+                <option value="active">Активен</option>
+                <option value="blocked">Заблокирован</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section className="client-form-section">
+          <h3>Дополнительно</h3>
+          <label className="client-form__disabled-option">
+            <input {...register('sendEmail')} type="checkbox" disabled />
+            <span>Отправить данные клиенту на email</span>
+            <em>Будет доступно после настройки SMTP</em>
+          </label>
+        </section>
+
+        <footer className="client-form-footer">
           <button type="button" onClick={onClose}>
             Отмена
           </button>
@@ -1061,6 +1108,11 @@ function PlatformAdminContent() {
   const [success, setSuccess] = useState<CreateClientSuccess | null>(null);
   const queryClient = useQueryClient();
 
+  const closeCreateModal = useCallback(() => {
+    setSuccess(null);
+    setCreateOpen(false);
+  }, []);
+
   const platformAdminQuery = useQuery({
     queryKey: ['platform-admin-session'],
     queryFn: getPlatformAdminAccess
@@ -1077,6 +1129,19 @@ function PlatformAdminContent() {
       window.removeEventListener('hashchange', onHashChange);
     };
   }, []);
+
+  useEffect(() => {
+    if (!createOpen) return undefined;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeCreateModal();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [closeCreateModal, createOpen]);
 
   const content = useMemo(() => {
     if (route === 'clients') {
@@ -1124,8 +1189,15 @@ function PlatformAdminContent() {
       </section>
       <PlatformMobileNav route={route} onNavigate={(nextRoute) => navigateToRoute(nextRoute, setRoute)} />
       {createOpen && (
-        <div className="platform-modal-backdrop">
-          <div className="platform-modal">
+        <div
+          className="platform-modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeCreateModal();
+            }
+          }}
+        >
+          <div className="platform-modal" role="dialog" aria-modal="true" aria-labelledby="create-client-title">
             {success ? (
               <SuccessPanel
                 success={success}
@@ -1153,7 +1225,7 @@ function PlatformAdminContent() {
                 {!templatesQuery.isLoading && !templatesQuery.isError && (templatesQuery.data?.length ?? 0) > 0 && (
                   <CreateClientForm
                     templates={templatesQuery.data ?? []}
-                    onClose={() => setCreateOpen(false)}
+                    onClose={closeCreateModal}
                     onSuccess={(result) => {
                       setSuccess(result);
                       void queryClient.invalidateQueries({ queryKey: ['platform-clients'] });
