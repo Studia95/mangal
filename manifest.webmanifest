@@ -11,8 +11,14 @@
   "theme_color": "#6C5CE7",
   "icons": [
     {
-      "src": "assets/logo/waycatalog-logo.png",
-      "sizes": "1774x887",
+      "src": "assets/logo/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/logo/icon-512.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     }

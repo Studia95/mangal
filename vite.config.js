@@ -15,7 +15,7 @@ export default defineConfig(function (_a) {
             VitePWA({
                 registerType: 'autoUpdate',
                 injectRegister: false,
-                includeAssets: ['assets/logo/*.png', 'robots.txt', 'placeholders/*.svg'],
+                includeAssets: ['assets/logo/*.{png,svg}', 'robots.txt', 'placeholders/*.svg'],
                 manifest: {
                     name: 'WayCatalog',
                     short_name: 'WayCatalog',
@@ -28,14 +28,14 @@ export default defineConfig(function (_a) {
                     display: 'standalone',
                     icons: [
                         {
-                            src: 'assets/logo/waycatalog-logo.png',
-                            sizes: '1774x887',
+                            src: 'assets/logo/icon-192.png',
+                            sizes: '192x192',
                             type: 'image/png',
                             purpose: 'any'
                         },
                         {
-                            src: 'assets/logo/waycatalog-logo.png',
-                            sizes: '1774x887',
+                            src: 'assets/logo/icon-512.png',
+                            sizes: '512x512',
                             type: 'image/png',
                             purpose: 'any'
                         }
