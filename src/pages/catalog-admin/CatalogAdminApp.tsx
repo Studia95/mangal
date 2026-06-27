@@ -1,13 +1,15 @@
-import { Copy, ExternalLink, LockKeyhole, LogOut, RefreshCw, ShieldAlert, Store } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { CheckCircle2, Copy, ExternalLink, LockKeyhole, LogOut, RefreshCw, ShieldAlert, Store } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type UIEvent } from 'react';
 import { Toaster, toast } from 'sonner';
 import {
+  confirmPersonalDataConsent,
   getCatalogAdminAccess,
   signInCatalogAdmin,
   signOutCatalogAdmin,
   type CatalogAdminAccess
 } from '../../shared/api/catalogAdminApi';
 import { copyText, getCatalogPublicUrl } from '../../shared/platformUrls';
+import { privacyPolicyIntro, privacyPolicySections, privacyPolicyTitle } from '../../shared/privacyPolicy';
 import './catalog-admin.css';
 
 type CatalogAdminAppProps = {
@@ -109,11 +111,13 @@ function CatalogForbidden({
 function CatalogDashboard({
   access,
   onRefresh,
-  onSignOut
+  onSignOut,
+  onConsentConfirmed
 }: {
   access: CatalogAdminAccess;
   onRefresh: () => void;
   onSignOut: () => void;
+  onConsentConfirmed: (access: CatalogAdminAccess) => void;
 }) {
   const catalog = access.catalog;
   const publicUrl = useMemo(() => (catalog ? getCatalogPublicUrl(catalog.slug) : ''), [catalog]);
@@ -128,8 +132,10 @@ function CatalogDashboard({
     );
   }
 
+  const isBlockedByConsent = access.firstLogin || !access.consentGiven;
+
   return (
-    <main className="catalog-admin-page">
+    <main className="catalog-admin-page" data-consent-blocked={isBlockedByConsent}>
       <Toaster richColors position="top-center" />
       <header className="catalog-admin-header">
         <div className="catalog-admin-brand">
@@ -201,7 +207,104 @@ function CatalogDashboard({
           Доступ уже отделён от суперадминки.
         </p>
       </section>
+      {isBlockedByConsent && (
+        <ConsentModal
+          slug={catalog.slug}
+          onConfirmed={onConsentConfirmed}
+        />
+      )}
     </main>
+  );
+}
+
+function ConsentModal({
+  slug,
+  onConfirmed
+}: {
+  slug: string;
+  onConfirmed: (access: CatalogAdminAccess) => void;
+}) {
+  const [scrolledToBottom, setScrolledToBottom] = useState(false);
+  const [accepted, setAccepted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  const checkScroll = (element: HTMLDivElement) => {
+    const isBottom = element.scrollTop + element.clientHeight >= element.scrollHeight - 8;
+    setScrolledToBottom(isBottom);
+  };
+
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (element) checkScroll(element);
+  }, []);
+
+  const onScroll = (event: UIEvent<HTMLDivElement>) => {
+    checkScroll(event.currentTarget);
+  };
+
+  const onConfirm = async () => {
+    if (!accepted || !scrolledToBottom) return;
+
+    setIsSubmitting(true);
+    try {
+      const nextAccess = await confirmPersonalDataConsent(slug);
+      toast.success('Согласие подтверждено');
+      onConfirmed(nextAccess);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Не удалось подтвердить согласие');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="consent-modal-backdrop">
+      <section className="consent-modal" role="dialog" aria-modal="true" aria-labelledby="consent-title">
+        <span className="consent-modal__icon">
+          <CheckCircle2 />
+        </span>
+        <h2 id="consent-title">Обработка персональных данных</h2>
+        <p>
+          Для использования системы WayCatalog необходимо подтвердить согласие на обработку персональных данных.
+        </p>
+        <p>Пожалуйста, ознакомьтесь с политикой ниже:</p>
+
+        <div className="consent-modal__scroll" ref={scrollRef} onScroll={onScroll} tabIndex={0}>
+          <h3>{privacyPolicyTitle}</h3>
+          <p>{privacyPolicyIntro}</p>
+          {privacyPolicySections.map((section) => (
+            <section key={section.title}>
+              <h4>{section.title}</h4>
+              {section.paragraphs?.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+              {section.items && (
+                <ul>
+                  {section.items.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          ))}
+        </div>
+
+        <label className="consent-modal__checkbox" aria-disabled={!scrolledToBottom}>
+          <input
+            type="checkbox"
+            checked={accepted}
+            disabled={!scrolledToBottom}
+            onChange={(event) => setAccepted(event.target.checked)}
+          />
+          <span>Я ознакомился и согласен с обработкой персональных данных</span>
+        </label>
+
+        <button type="button" disabled={!accepted || !scrolledToBottom || isSubmitting} onClick={onConfirm}>
+          {isSubmitting ? 'Подтверждаем...' : 'Подтвердить'}
+        </button>
+      </section>
+    </div>
   );
 }
 
@@ -266,12 +369,13 @@ export function CatalogAdminApp({ slug }: CatalogAdminAppProps) {
   }
 
   return (
-    <CatalogDashboard
-      access={access}
-      onRefresh={() => void refresh()}
-      onSignOut={() => {
-        void signOutCatalogAdmin().then(refresh);
-      }}
-    />
+      <CatalogDashboard
+        access={access}
+        onRefresh={() => void refresh()}
+        onSignOut={() => {
+          void signOutCatalogAdmin().then(refresh);
+        }}
+        onConsentConfirmed={(nextAccess) => setAccess(nextAccess)}
+      />
   );
 }

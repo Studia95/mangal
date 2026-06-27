@@ -13,6 +13,7 @@ type CreateClientPayload = {
   subscriptionEndsAt?: string;
   status?: 'active' | 'inactive' | 'blocked' | 'pending';
   subscriptionStatus?: 'trial' | 'active' | 'past_due' | 'expired' | 'cancelled';
+  adminConsentConfirmed?: boolean;
 };
 
 const corsHeaders = {
@@ -54,6 +55,7 @@ const assertPayload = (payload: CreateClientPayload) => {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) throw new Error('Email is invalid.');
   if (!isStrongPassword(payload.password)) throw new Error('Password is too weak.');
   if (!payload.templateVersionId) throw new Error('Template version is required.');
+  if (!payload.adminConsentConfirmed) throw new Error('Client consent confirmation is required.');
 };
 
 const image = (id: string, query: string) =>
@@ -414,6 +416,12 @@ Deno.serve(async (request) => {
           plan_code: payload.planId ?? 'trial',
           subscription_status: payload.subscriptionStatus ?? 'trial',
           subscription_ends_at: payload.subscriptionEndsAt || null,
+          first_login: true,
+          consent_given: false,
+          consent_source: null,
+          admin_consent_confirmed: true,
+          admin_consent_confirmed_at: new Date().toISOString(),
+          admin_consent_actor_id: userData.user.id,
           created_by: userData.user.id
         })
         .select('id')

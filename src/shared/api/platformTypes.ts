@@ -61,6 +61,7 @@ export type CreateClientPayload = {
   subscriptionEndsAt?: string;
   status?: ClientStatus;
   subscriptionStatus?: SubscriptionStatus;
+  adminConsentConfirmed?: boolean;
 };
 
 export type CreateClientResult = {

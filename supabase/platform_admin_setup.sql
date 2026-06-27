@@ -56,6 +56,14 @@ create table if not exists public.clients (
   unique(email)
 );
 
+alter table public.clients add column if not exists first_login boolean not null default true;
+alter table public.clients add column if not exists consent_given boolean not null default false;
+alter table public.clients add column if not exists consent_given_at timestamptz;
+alter table public.clients add column if not exists consent_source text;
+alter table public.clients add column if not exists admin_consent_confirmed boolean not null default false;
+alter table public.clients add column if not exists admin_consent_confirmed_at timestamptz;
+alter table public.clients add column if not exists admin_consent_actor_id uuid references auth.users(id) on delete set null;
+
 create table if not exists public.client_subscriptions (
   id uuid primary key default gen_random_uuid(),
   client_id uuid not null references public.clients(id) on delete cascade,
@@ -74,6 +82,7 @@ create table if not exists public.client_subscriptions (
 
 create index if not exists clients_status_created_idx on public.clients(status, created_at desc);
 create index if not exists clients_catalog_id_idx on public.clients(catalog_id);
+create index if not exists clients_owner_first_login_idx on public.clients(owner_user_id, first_login);
 create index if not exists client_subscriptions_client_id_idx on public.client_subscriptions(client_id);
 create index if not exists client_subscriptions_status_ends_idx on public.client_subscriptions(status, ends_at);
 
@@ -101,6 +110,33 @@ with check (public.is_platform_admin());
 drop policy if exists "clients read own record" on public.clients;
 create policy "clients read own record" on public.clients
 for select using (public.is_platform_admin() or owner_user_id = auth.uid());
+
+create or replace function public.mark_client_personal_data_consent()
+returns public.clients
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  updated_client public.clients;
+begin
+  update public.clients
+  set consent_given = true,
+      first_login = false,
+      consent_source = 'user',
+      consent_given_at = now()
+  where owner_user_id = auth.uid()
+  returning * into updated_client;
+
+  if updated_client.id is null then
+    raise exception 'Client record not found.';
+  end if;
+
+  return updated_client;
+end;
+$$;
+
+grant execute on function public.mark_client_personal_data_consent() to authenticated;
 
 drop policy if exists "platform admins manage subscriptions" on public.client_subscriptions;
 create policy "platform admins manage subscriptions" on public.client_subscriptions

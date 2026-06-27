@@ -688,7 +688,8 @@ function CreateClientForm({
       planId: 'trial',
       subscriptionStatus: 'trial',
       status: 'active',
-      sendEmail: false
+      sendEmail: false,
+      adminConsentConfirmed: false
     }
   });
 
@@ -696,6 +697,7 @@ function CreateClientForm({
   const password = watch('password');
   const slug = watch('slug');
   const templateVersionId = watch('templateVersionId');
+  const adminConsentConfirmed = watch('adminConsentConfirmed');
 
   useEffect(() => {
     if (!slug && name) {
@@ -713,6 +715,11 @@ function CreateClientForm({
   const selectedTemplate = templates.find((template) => template.templateVersionId === templateVersionId);
 
   const onSubmit = handleSubmit(async (values) => {
+    if (!values.adminConsentConfirmed) {
+      alert('Необходимо подтвердить согласие клиента');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const result = await createClient({
@@ -727,7 +734,8 @@ function CreateClientForm({
         planId: values.planId,
         subscriptionEndsAt: values.subscriptionEndsAt,
         status: values.status,
-        subscriptionStatus: values.subscriptionStatus
+        subscriptionStatus: values.subscriptionStatus,
+        adminConsentConfirmed: values.adminConsentConfirmed
       });
       onSuccess({
         email: result.email,
@@ -906,6 +914,15 @@ function CreateClientForm({
 
         <section className="client-form-section">
           <h3>Дополнительно</h3>
+          <label className="client-form__consent-option">
+            <input {...register('adminConsentConfirmed')} type="checkbox" />
+            <span>Клиент дал согласие на обработку персональных данных</span>
+            <a href="/privacy" target="_blank" rel="noreferrer">
+              <BookOpen />
+              Прочитать политику
+            </a>
+            {errors.adminConsentConfirmed && <small>{errors.adminConsentConfirmed.message}</small>}
+          </label>
           <label className="client-form__disabled-option">
             <input {...register('sendEmail')} type="checkbox" disabled />
             <span>Отправить данные клиенту на email</span>
@@ -917,7 +934,7 @@ function CreateClientForm({
           <button type="button" onClick={onClose}>
             Отмена
           </button>
-          <button type="submit" disabled={isSubmitting || templates.length === 0}>
+          <button type="submit" disabled={isSubmitting || templates.length === 0 || !adminConsentConfirmed}>
             <Plus />
             {isSubmitting ? 'Создаём...' : 'Создать клиента'}
           </button>

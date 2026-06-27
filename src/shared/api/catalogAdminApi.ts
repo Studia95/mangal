@@ -5,6 +5,8 @@ export type CatalogAdminAccess = {
   isMember: boolean;
   email: string | null;
   role: 'owner' | 'admin' | 'editor' | 'viewer' | null;
+  firstLogin: boolean;
+  consentGiven: boolean;
   catalog: {
     id: string;
     name: string;
@@ -83,6 +85,8 @@ export async function getCatalogAdminAccess(slug: string): Promise<CatalogAdminA
       isMember: true,
       email: 'client@catalog.app',
       role: 'owner',
+      firstLogin: localStorage.getItem('waycatalog:demo-consent-given') !== 'true',
+      consentGiven: localStorage.getItem('waycatalog:demo-consent-given') === 'true',
       catalog
     };
   }
@@ -96,6 +100,8 @@ export async function getCatalogAdminAccess(slug: string): Promise<CatalogAdminA
       isMember: false,
       email: null,
       role: null,
+      firstLogin: false,
+      consentGiven: false,
       catalog
     };
   }
@@ -106,6 +112,8 @@ export async function getCatalogAdminAccess(slug: string): Promise<CatalogAdminA
       isMember: false,
       email: session.user.email ?? null,
       role: null,
+      firstLogin: false,
+      consentGiven: false,
       catalog: null
     };
   }
@@ -119,11 +127,21 @@ export async function getCatalogAdminAccess(slug: string): Promise<CatalogAdminA
 
   if (error) throw new Error(error.message);
 
+  const { data: client, error: clientError } = await supabase
+    .from('clients')
+    .select('first_login, consent_given')
+    .eq('owner_user_id', session.user.id)
+    .maybeSingle();
+
+  if (clientError) throw new Error(clientError.message);
+
   return {
     hasSession: true,
     isMember: Boolean(member),
     email: session.user.email ?? null,
     role: (member?.role as CatalogRole | undefined) ?? null,
+    firstLogin: client?.first_login ?? false,
+    consentGiven: client?.consent_given ?? true,
     catalog
   };
 }
@@ -143,4 +161,15 @@ export async function signInCatalogAdmin(slug: string, email: string, password: 
 export async function signOutCatalogAdmin() {
   if (!supabase) return;
   await supabase.auth.signOut();
+}
+
+export async function confirmPersonalDataConsent(slug: string): Promise<CatalogAdminAccess> {
+  if (!supabase) {
+    localStorage.setItem('waycatalog:demo-consent-given', 'true');
+    return getCatalogAdminAccess(slug);
+  }
+
+  const { error } = await supabase.rpc('mark_client_personal_data_consent');
+  if (error) throw new Error(error.message);
+  return getCatalogAdminAccess(slug);
 }

@@ -4,6 +4,7 @@ import { registerSW } from 'virtual:pwa-register';
 import { App } from './app/App';
 import { CatalogAdminApp } from './pages/catalog-admin/CatalogAdminApp';
 import { PlatformAdminApp } from './pages/platform-admin/PlatformAdminApp';
+import { PrivacyPage } from './pages/privacy/PrivacyPage';
 import './app/styles.css';
 import './features/dish-editor/styles.css';
 
@@ -67,10 +68,13 @@ const getCurrentAppRoute = () => {
 
 const isPlatformAdminRoute = getCurrentAppRoute().startsWith('/admin/');
 const catalogAdminMatch = getCurrentAppRoute().match(/^\/admin\/catalogs\/([^/]+)\/?$/);
+const isPrivacyRoute = getCurrentAppRoute().replace(/\/$/, '') === '/privacy';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    {catalogAdminMatch ? (
+    {isPrivacyRoute ? (
+      <PrivacyPage />
+    ) : catalogAdminMatch ? (
       <CatalogAdminApp slug={decodeURIComponent(catalogAdminMatch[1])} />
     ) : isPlatformAdminRoute ? (
       <PlatformAdminApp />

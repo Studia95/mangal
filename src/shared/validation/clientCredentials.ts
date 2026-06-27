@@ -107,7 +107,8 @@ export const createClientSchema = z.object({
   subscriptionEndsAt: z.string().optional(),
   status: z.enum(['active', 'inactive', 'blocked', 'pending']).default('active'),
   subscriptionStatus: z.enum(['trial', 'active', 'past_due', 'expired', 'cancelled']).default('trial'),
-  sendEmail: z.boolean().default(false)
+  sendEmail: z.boolean().default(false),
+  adminConsentConfirmed: z.boolean().refine(Boolean, 'Необходимо подтвердить согласие клиента')
 });
 
 export type CreateClientFormValues = z.infer<typeof createClientSchema>;
