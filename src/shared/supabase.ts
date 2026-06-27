@@ -45,6 +45,7 @@ type PlatformCatalogRow = {
 
 type PlatformCategoryRow = {
   id: string;
+  slug: string;
   name: string;
   image_url: string | null;
   icon: string | null;
@@ -67,6 +68,21 @@ type PlatformProductRow = {
   is_promo: boolean;
 };
 
+type PlatformProductImageRow = {
+  product_id: string;
+  url: string;
+  sort_order: number;
+};
+
+type PlatformCabinRow = {
+  id: string;
+  title: string;
+  capacity: number;
+  image_url: string | null;
+};
+
+const drinkCategorySlugs = new Set(['fridge', 'lemonades', 'tea']);
+
 const mapPlatformRestaurant = (value: PlatformCatalogRow): Restaurant => ({
   ...restaurant,
   id: value.id,
@@ -85,15 +101,15 @@ const mapPlatformCategory = (value: PlatformCategoryRow): Category => ({
   name: value.name,
   image: value.image_url ?? '',
   icon: value.icon ?? '',
-  kind: 'food'
+  kind: value.slug === 'cabins' ? 'space' : drinkCategorySlugs.has(value.slug) ? 'drink' : 'food'
 });
 
-const mapPlatformProduct = (value: PlatformProductRow): Product => ({
+const mapPlatformProduct = (value: PlatformProductRow, imageUrl = ''): Product => ({
   id: value.id,
   title: value.title,
   price: value.price,
   description: value.description,
-  image_url: '',
+  image_url: imageUrl,
   ingredients: value.ingredients,
   weight: value.weight,
   spicy_level: 0,
@@ -109,6 +125,14 @@ const mapPlatformProduct = (value: PlatformProductRow): Product => ({
   category_id: value.category_id ?? '',
   category_ids: value.category_id ? [value.category_id] : [],
   pair_ids: []
+});
+
+const mapPlatformCabin = (value: PlatformCabinRow): Cabin => ({
+  id: value.id,
+  title: value.title,
+  capacity: `до ${value.capacity} гостей`,
+  feature: '',
+  image_url: value.image_url ?? ''
 });
 
 async function getPlatformCatalogId(catalogSlug: string) {
@@ -219,22 +243,40 @@ export async function loadCatalog(catalogSlug?: string) {
     const catalog = catalogResult.data as PlatformCatalogRow;
     activePlatformCatalogId = catalog.id;
 
-    const [categoriesResult, productsResult, tagsResult, themeResult] = await Promise.all([
-      supabase.from('categories').select('id, name, image_url, icon').eq('catalog_id', catalog.id).order('sort_order'),
+    const [categoriesResult, productsResult, productImagesResult, tagsResult, cabinsResult, themeResult] = await Promise.all([
+      supabase.from('categories').select('id, slug, name, image_url, icon').eq('catalog_id', catalog.id).order('sort_order'),
       supabase
         .from('products')
         .select('id, category_id, title, status, price, description, ingredients, weight, serving, stock_count, is_unlimited, is_popular, is_new, is_promo')
         .eq('catalog_id', catalog.id)
         .order('sort_order'),
+      supabase
+        .from('product_images')
+        .select('product_id, url, sort_order')
+        .eq('catalog_id', catalog.id)
+        .order('sort_order'),
       supabase.from('tags').select('id, name, icon, color').eq('catalog_id', catalog.id).order('sort_order'),
+      supabase
+        .from('bookable_resources')
+        .select('id, title, capacity, image_url')
+        .eq('catalog_id', catalog.id)
+        .order('sort_order'),
       supabase.from('catalog_theme_settings').select('settings').eq('catalog_id', catalog.id).maybeSingle()
     ]);
+    const productImages = new Map<string, string>();
+    ((productImagesResult.data ?? []) as PlatformProductImageRow[]).forEach((imageRow) => {
+      if (!productImages.has(imageRow.product_id)) {
+        productImages.set(imageRow.product_id, imageRow.url);
+      }
+    });
 
     return {
       restaurant: mapPlatformRestaurant(catalog),
       categories: ((categoriesResult.data ?? []) as PlatformCategoryRow[]).map(mapPlatformCategory),
-      products: ((productsResult.data ?? []) as PlatformProductRow[]).map(mapPlatformProduct),
-      cabins: [],
+      products: ((productsResult.data ?? []) as PlatformProductRow[]).map((product) =>
+        mapPlatformProduct(product, productImages.get(product.id) ?? '')
+      ),
+      cabins: ((cabinsResult.data ?? []) as PlatformCabinRow[]).map(mapPlatformCabin),
       tags: (tagsResult.data ?? []) as CatalogTag[],
       theme: { ...themeSettings, ...((themeResult.data?.settings as Partial<ThemeSettings> | undefined) ?? {}) },
       source: 'supabase' as const
@@ -310,15 +352,38 @@ const productPatchToPlatformRow = (patch: Partial<Product>) => {
   return row;
 };
 
+async function syncPlatformProductImage(productId: string, imageUrl?: string) {
+  if (!supabase || !activePlatformCatalogId || !uuidPattern.test(productId)) return;
+  await throwOnError(
+    supabase.from('product_images').delete().eq('catalog_id', activePlatformCatalogId).eq('product_id', productId)
+  );
+  if (!imageUrl) return;
+  await throwOnError(
+    supabase.from('product_images').insert({
+      catalog_id: activePlatformCatalogId,
+      product_id: productId,
+      url: imageUrl,
+      alt: '',
+      sort_order: 0
+    })
+  );
+}
+
 export async function saveProductToSupabase(product: Product) {
   if (!supabase) return;
   if (activePlatformCatalogId) {
     const row = productToPlatformRow(product);
     if (uuidPattern.test(product.id)) {
       await throwOnError(supabase.from('products').upsert({ id: product.id, ...row }, { onConflict: 'id' }));
+      await syncPlatformProductImage(product.id, product.image_url);
       return;
     }
-    await throwOnError(supabase.from('products').insert(row));
+    const created = (await throwOnError(supabase.from('products').insert(row).select('id').single())) as
+      | { id: string }
+      | null;
+    if (created?.id) {
+      await syncPlatformProductImage(String(created.id), product.image_url);
+    }
     return;
   }
   await throwOnError(supabase.from('product').upsert(product, { onConflict: 'id' }));
@@ -329,6 +394,9 @@ export async function updateProductInSupabase(productId: string, patch: Partial<
   if (activePlatformCatalogId) {
     if (!uuidPattern.test(productId)) return;
     await throwOnError(supabase.from('products').update(productPatchToPlatformRow(patch)).eq('id', productId).eq('catalog_id', activePlatformCatalogId));
+    if (patch.image_url !== undefined) {
+      await syncPlatformProductImage(productId, patch.image_url);
+    }
     return;
   }
   await throwOnError(supabase.from('product').update(patch).eq('id', productId));
