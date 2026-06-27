@@ -106,7 +106,7 @@ Deno.serve(async (request) => {
         adminClient.from('catalogs').select('id').eq('slug', payload.slug).maybeSingle(),
         adminClient
           .from('template_versions')
-          .select('id, status')
+          .select('id, status, templates(key)')
           .eq('id', payload.templateVersionId)
           .eq('status', 'published')
           .maybeSingle()
@@ -118,6 +118,9 @@ Deno.serve(async (request) => {
     if (existingClientByEmail) throw new Error('Email already exists.');
     if (existingCatalogBySlug) throw new Error('Slug already exists.');
     if (!templateVersion) throw new Error('Template version is not available.');
+    if ((templateVersion.templates as { key?: string } | null)?.key !== 'restaurant-modern') {
+      throw new Error('Only the restaurant-modern template is available for new clients.');
+    }
 
     const { data: createdUser, error: createUserError } = await adminClient.auth.admin.createUser({
       email: payload.email,
