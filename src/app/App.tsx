@@ -95,6 +95,7 @@ const formatPrice = (value: number) => `${new Intl.NumberFormat('ru-RU').format(
 type SettingsScreen = 'settings' | 'settings-profile' | 'settings-categories' | 'settings-design' | 'settings-stock' | 'settings-backup' | 'settings-delete';
 type Screen = 'home' | 'catalog' | 'drinks' | 'product' | 'checkout' | SettingsScreen;
 type ProductFlag = 'is_popular' | 'is_hidden';
+type CategoryEditorMode = 'list' | 'edit' | 'add';
 type OrderFlowState = {
   step: 'category' | 'done';
   categoryId?: string;
@@ -1643,11 +1644,15 @@ function AdminPanel({ active, onAdd, onSettings }: { active?: 'add' | 'settings'
 function SettingsHeader({
   title,
   onBack,
-  onAction
+  onAction,
+  actionLabel = 'Добавить',
+  actionIcon
 }: {
   title: string;
   onBack: () => void;
   onAction?: () => void;
+  actionLabel?: string;
+  actionIcon?: React.ReactNode;
 }) {
   return (
     <header className="settings-header">
@@ -1656,8 +1661,8 @@ function SettingsHeader({
       </button>
       <h1>{title}</h1>
       {onAction ? (
-        <button className="icon-button" type="button" onClick={onAction} aria-label="Добавить категорию">
-          <Plus />
+        <button className="icon-button" type="button" onClick={onAction} aria-label={actionLabel}>
+          {actionIcon ?? <Plus />}
         </button>
       ) : (
         <span />
@@ -1853,18 +1858,22 @@ function InlineEditor({
 
 function CategoriesSettings({
   categories,
-  cabins,
   tags,
+  products,
+  mode,
+  editingId,
+  onModeChange,
   onChangeCategories,
-  onChangeCabins,
-  onChangeTags
+  onDeleteCategory
 }: {
   categories: Category[];
-  cabins: Cabin[];
   tags: CatalogTag[];
+  products: Product[];
+  mode: CategoryEditorMode;
+  editingId?: string;
+  onModeChange: (mode: CategoryEditorMode, categoryId?: string) => void;
   onChangeCategories: (categories: Category[]) => void;
-  onChangeCabins: (cabins: Cabin[]) => void;
-  onChangeTags: (tags: CatalogTag[]) => void;
+  onDeleteCategory: (categoryId: string) => void;
 }) {
   const move = (index: number, direction: -1 | 1) => {
     const nextIndex = index + direction;
@@ -1873,229 +1882,287 @@ function CategoriesSettings({
     [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
     onChangeCategories(next);
   };
-  const addCategory = (name = 'Новая категория') => {
-    onChangeCategories([...categories, createCategoryDraft(name)]);
+  const editingCategory = editingId ? categories.find((category) => category.id === editingId) : undefined;
+  const productCountFor = (categoryId: string) =>
+    products.filter((product) => isProductInCategory(product, categoryId)).length;
+  const statusFor = (category: Category) => {
+    if (category.icon === 'flame' || category.icon === 'hot') return { label: 'Популярная', tone: 'popular' };
+    if (category.icon === 'pot' || category.icon === 'chef') return { label: 'Новинка', tone: 'new' };
+    return { label: 'Обычная', tone: 'default' };
   };
-  const setDisplayType = (categoryId: string, displayType: 'main' | 'secondary') => {
+  const saveCategory = (category: Category) => {
+    const normalized = {
+      ...category,
+      name: category.name.trim() || 'Новая категория',
+      showOnHome: category.showInOrderFlow === true ? false : true
+    };
+    const exists = categories.some((item) => item.id === normalized.id);
     onChangeCategories(
-      categories.map((item) =>
-        item.id === categoryId
-          ? {
-              ...item,
-              showOnHome: displayType === 'main',
-              showInOrderFlow: displayType === 'secondary'
-            }
-          : item
-      )
+      exists
+        ? categories.map((item) => (item.id === normalized.id ? normalized : item))
+        : [...categories, normalized]
     );
+    onModeChange('list');
   };
+
+  if (mode === 'add' || mode === 'edit') {
+    return (
+      <CategoryEditScreen
+        category={mode === 'edit' ? editingCategory : undefined}
+        mode={mode}
+        tags={tags}
+        sortIndex={mode === 'edit' && editingCategory ? categories.findIndex((item) => item.id === editingCategory.id) : categories.length}
+        onCancel={() => onModeChange('list')}
+        onMove={mode === 'edit' && editingCategory ? (direction) => move(categories.findIndex((item) => item.id === editingCategory.id), direction) : undefined}
+        onSave={saveCategory}
+      />
+    );
+  }
 
   return (
     <main className="settings-screen category-settings-screen">
-      <section className="settings-form-card category-settings-card">
+      <nav className="category-tabs" aria-label="Разделы настроек">
+        {[
+          ['templates', ClipboardList, 'Шаблоны'],
+          ['tags', Tags, 'Метки'],
+          ['cabins', Store, 'Кабинки'],
+          ['categories', Tags, 'Категории']
+        ].map(([id, Icon, label]) => (
+          <button className={id === 'categories' ? 'is-active' : ''} type="button" key={id as string}>
+            <Icon />
+            <span>{label as string}</span>
+          </button>
+        ))}
+      </nav>
+      <section className="category-settings-card">
         <div className="category-settings-tip">
           <Info />
           <span>Фото категории лучше загружать широким: 16:9 или около 1.72:1, например 1200 x 700 px.</span>
         </div>
-        <div className="settings-list">
+        <div className="category-list">
           {categories.map((category, index) => (
-            <article className="settings-list-item settings-list-item--category" key={category.id}>
-              <GripVertical />
-              <label className="settings-thumb">
-                {category.image ? <img src={category.image} alt="" /> : <CloudUpload />}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={async (event) => {
-                    const file = event.target.files?.[0];
-                    if (!file) return;
-                    const image = await imageFileToDataUrl(file);
-                    onChangeCategories(categories.map((item) => (item.id === category.id ? { ...item, image } : item)));
-                    event.target.value = '';
-                  }}
-                />
-              </label>
-              <input
-                value={category.name}
-                onChange={(event) =>
-                  onChangeCategories(categories.map((item) => (item.id === category.id ? { ...item, name: event.target.value } : item)))
-                }
-              />
-              <div className="category-icon-picker" aria-label={`Иконка категории ${category.name}`}>
-                {categoryIconOptions.slice(0, 3).map(({ id, label, Icon }) => (
-                  <button
-                    className={category.icon === id ? 'is-active' : ''}
-                    type="button"
-                    key={id}
-                    title={label}
-                    aria-label={label}
-                    onClick={() =>
-                      onChangeCategories(categories.map((item) => (item.id === category.id ? { ...item, icon: id } : item)))
-                    }
-                  >
-                    <Icon />
-                  </button>
-                ))}
-              </div>
-              <div className="category-display-options">
-                <label className="category-home-toggle">
-                  <input
-                    type="radio"
-                    name={`display-type-${category.id}`}
-                    checked={category.showInOrderFlow !== true}
-                    onChange={() => setDisplayType(category.id, 'main')}
-                  />
-                  <span>На главной</span>
-                </label>
-                <label className="category-home-toggle">
-                  <input
-                    type="radio"
-                    name={`display-type-${category.id}`}
-                    checked={category.showInOrderFlow === true}
-                    onChange={() => setDisplayType(category.id, 'secondary')}
-                  />
-                  <span>После далее</span>
-                </label>
-              </div>
-              <div className="category-url-row">
-                <Link2 />
-                <input
-                  value={category.image}
-                  aria-label={`Фото категории ${category.name}`}
-                  placeholder="Ссылка на фото"
-                  onChange={(event) =>
-                    onChangeCategories(categories.map((item) => (item.id === category.id ? { ...item, image: event.target.value } : item)))
-                  }
-                />
-              </div>
-              <label className="category-upload-button" aria-label={`Загрузить фото ${category.name}`}>
-                <CloudUpload />
-                <span>Загрузить</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={async (event) => {
-                    const file = event.target.files?.[0];
-                    if (!file) return;
-                    const image = await imageFileToDataUrl(file);
-                    onChangeCategories(categories.map((item) => (item.id === category.id ? { ...item, image } : item)));
-                    event.target.value = '';
-                  }}
-                />
-              </label>
-              <button className="category-clear-button" type="button" onClick={() => onChangeCategories(categories.map((item) => (item.id === category.id ? { ...item, image: '' } : item)))} aria-label="Очистить фото">
-                <Trash2 />
-                <span>Очистить</span>
-              </button>
-              <button type="button" onClick={() => move(index, -1)} aria-label="Выше">
-                ↑
-              </button>
-              <button type="button" onClick={() => move(index, 1)} aria-label="Ниже">
-                ↓
-              </button>
-              <button className="danger-icon" type="button" onClick={() => onChangeCategories(categories.filter((item) => item.id !== category.id))} aria-label="Удалить">
-                <Trash2 />
-              </button>
-            </article>
+            <button className="category-list-card" type="button" key={category.id} onClick={() => onModeChange('edit', category.id)}>
+              <GripVertical className="category-list-card__drag" />
+              <SafeImage src={category.image} alt={category.name} className="category-list-card__image" />
+              <span className="category-list-card__content">
+                <strong>{category.name}</strong>
+                <span className={`category-status-badge category-status-badge--${statusFor(category).tone}`}>
+                  {category.icon === 'flame' || category.icon === 'hot' ? <Flame /> : category.icon === 'pot' || category.icon === 'chef' ? <ChefHat /> : <Utensils />}
+                  {statusFor(category).label}
+                </span>
+                <small>
+                  <i />
+                  {category.showInOrderFlow === true ? 'После далее' : 'На главной'}
+                </small>
+                <em>{productCountFor(category.id)} блюд</em>
+              </span>
+              <ArrowRight className="category-list-card__arrow" />
+            </button>
           ))}
         </div>
-        <button className="category-add-wide" type="button" onClick={() => addCategory()}>
+        <button className="category-add-wide" type="button" onClick={() => onModeChange('add')}>
           <Plus />
           Добавить категорию
         </button>
       </section>
+    </main>
+  );
+}
 
-      <section className="settings-form-card">
-        <div className="settings-section-head">
-          <h2>Кабинки</h2>
-        </div>
-        <InlineEditor
-          placeholder="Новая кабинка"
-          onAdd={(title) =>
-            onChangeCabins([
-              ...cabins,
-              {
-                id: makeId('cabin'),
-                title,
-                capacity: 'до 4 гостей',
-                feature: 'Уютная зона',
-                image_url: demoCabins[0]?.image_url ?? ''
-              }
-            ])
-          }
-        />
-        <div className="settings-list">
-          {cabins.map((cabin) => (
-            <article className="settings-list-item settings-list-item--cabin" key={cabin.id}>
-              <label className="settings-thumb">
-                {cabin.image_url ? <img src={cabin.image_url} alt="" /> : <CloudUpload />}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={async (event) => {
-                    const file = event.target.files?.[0];
-                    if (!file) return;
-                    const image_url = await imageFileToDataUrl(file);
-                    onChangeCabins(cabins.map((item) => (item.id === cabin.id ? { ...item, image_url } : item)));
-                    event.target.value = '';
-                  }}
-                />
-              </label>
-              <input
-                value={cabin.title}
-                onChange={(event) => onChangeCabins(cabins.map((item) => (item.id === cabin.id ? { ...item, title: event.target.value } : item)))}
-              />
-              <input
-                value={cabin.capacity}
-                aria-label={`Вместимость ${cabin.title}`}
-                onChange={(event) => onChangeCabins(cabins.map((item) => (item.id === cabin.id ? { ...item, capacity: event.target.value } : item)))}
-              />
-              <input
-                value={cabin.image_url}
-                aria-label={`Фото ${cabin.title}`}
-                placeholder="Ссылка на фото"
-                onChange={(event) => onChangeCabins(cabins.map((item) => (item.id === cabin.id ? { ...item, image_url: event.target.value } : item)))}
-              />
-              <button className="danger-icon" type="button" onClick={() => onChangeCabins(cabins.filter((item) => item.id !== cabin.id))} aria-label="Удалить">
-                <Trash2 />
-              </button>
-            </article>
-          ))}
-        </div>
-      </section>
+function CategoryEditScreen({
+  category,
+  mode,
+  tags,
+  sortIndex,
+  onCancel,
+  onMove,
+  onSave
+}: {
+  category?: Category;
+  mode: 'edit' | 'add';
+  tags: CatalogTag[];
+  sortIndex: number;
+  onCancel: () => void;
+  onMove?: (direction: -1 | 1) => void;
+  onSave: (category: Category) => void;
+}) {
+  const [draft, setDraft] = useState<Category>(() => category ?? createCategoryDraft(''));
 
-      <section className="settings-form-card">
-        <div className="settings-section-head">
-          <h2>Метки (теги)</h2>
-        </div>
-        <InlineEditor
-          placeholder="Новая метка"
-          onAdd={(name) => onChangeTags([...tags, { id: makeId('tag'), name, icon: '⭐', color: '#f59e0b' }])}
-        />
-        <div className="settings-list">
-          {tags.map((tag) => (
-            <article className="settings-list-item settings-list-item--tag" key={tag.id}>
-              <input
-                value={tag.icon}
-                aria-label="Иконка"
-                onChange={(event) => onChangeTags(tags.map((item) => (item.id === tag.id ? { ...item, icon: event.target.value } : item)))}
-              />
-              <input
-                value={tag.name}
-                onChange={(event) => onChangeTags(tags.map((item) => (item.id === tag.id ? { ...item, name: event.target.value } : item)))}
-              />
-              <input
-                type="color"
-                value={tag.color}
-                aria-label="Цвет"
-                onChange={(event) => onChangeTags(tags.map((item) => (item.id === tag.id ? { ...item, color: event.target.value } : item)))}
-              />
-              <button className="danger-icon" type="button" onClick={() => onChangeTags(tags.filter((item) => item.id !== tag.id))} aria-label="Удалить">
-                <Trash2 />
+  useEffect(() => {
+    setDraft(category ?? createCategoryDraft(''));
+  }, [category, mode]);
+
+  const selectedTags = tags.slice(0, mode === 'edit' ? 2 : 0);
+  const isSecondary = draft.showInOrderFlow === true;
+  const updateDisplay = (displayType: 'main' | 'secondary') => {
+    setDraft((current) => ({
+      ...current,
+      showOnHome: displayType === 'main',
+      showInOrderFlow: displayType === 'secondary'
+    }));
+  };
+
+  return (
+    <main className="settings-screen category-edit-screen">
+      <section className="category-edit-card">
+        <div className="category-edit-field">
+          <strong>Изображение категории</strong>
+          {draft.image ? (
+            <div className="category-edit-image">
+              <SafeImage src={draft.image} alt={draft.name || 'Изображение категории'} />
+              <button type="button" onClick={() => setDraft({ ...draft, image: '' })} aria-label="Очистить изображение">
+                <X />
               </button>
-            </article>
-          ))}
+            </div>
+          ) : (
+            <label className="category-upload-drop">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  setDraft({ ...draft, image: await imageFileToDataUrl(file) });
+                  event.target.value = '';
+                }}
+              />
+              <Plus />
+              <span>Загрузите изображение<br />или перетащите сюда</span>
+            </label>
+          )}
+          <div className="category-edit-actions">
+            <label>
+              <CloudUpload />
+              Загрузить
+              <input
+                type="file"
+                accept="image/*"
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  setDraft({ ...draft, image: await imageFileToDataUrl(file) });
+                  event.target.value = '';
+                }}
+              />
+            </label>
+            <button type="button" disabled={!draft.image} onClick={() => setDraft({ ...draft, image: '' })}>
+              <Trash2 />
+              Очистить
+            </button>
+          </div>
         </div>
+
+        <label className="category-edit-field">
+          <strong>Название категории</strong>
+          <input
+            value={draft.name}
+            placeholder="Введите название категории"
+            onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+          />
+        </label>
+
+        <label className="category-edit-field">
+          <strong>Ссылка на изображение</strong>
+          <span className="category-edit-url">
+            <Link2 />
+            <input
+              value={draft.image}
+              placeholder="Вставьте ссылку на изображение"
+              onChange={(event) => setDraft({ ...draft, image: event.target.value })}
+            />
+          </span>
+        </label>
+
+        <div className="category-edit-field">
+          <strong>Иконки категории</strong>
+          <div className="category-edit-icons">
+            {categoryIconOptions.slice(0, 12).map(({ id, label, Icon }) => (
+              <button
+                className={draft.icon === id ? 'is-active' : ''}
+                type="button"
+                key={id}
+                title={label}
+                aria-label={label}
+                onClick={() => setDraft({ ...draft, icon: id })}
+              >
+                <Icon />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="category-edit-field">
+          <strong>Статус</strong>
+          <div className="category-status-options">
+            {[
+              ['flame', 'Популярная'],
+              ['pot', 'Новинка'],
+              ['utensils', 'Обычная']
+            ].map(([icon, label]) => (
+              <button
+                className={draft.icon === icon ? 'is-active' : ''}
+                type="button"
+                key={icon}
+                onClick={() => setDraft({ ...draft, icon })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="category-edit-field">
+          <strong>Отображение категории</strong>
+          <label className="category-edit-radio">
+            <input type="radio" checked={!isSecondary} onChange={() => updateDisplay('main')} />
+            На главной
+          </label>
+          <label className="category-edit-radio">
+            <input type="radio" checked={isSecondary} onChange={() => updateDisplay('secondary')} />
+            После "Показать ещё"
+          </label>
+        </div>
+
+        <div className="category-edit-field">
+          <strong>Метки</strong>
+          <div className="category-edit-tags">
+            {selectedTags.map((tag) => (
+              <span key={tag.id}>
+                {tag.name}
+                <X />
+              </span>
+            ))}
+            <button type="button">
+              <Plus />
+              Добавить метку
+            </button>
+          </div>
+        </div>
+
+        <div className="category-edit-field">
+          <strong>Порядок сортировки</strong>
+          <div className="category-sort-row">
+            <button type="button" onClick={() => onMove?.(-1)} disabled={!onMove}>
+              ↑
+            </button>
+            <button type="button" onClick={() => onMove?.(1)} disabled={!onMove}>
+              ↓
+            </button>
+            <input value={sortIndex < 0 ? 0 : sortIndex} readOnly aria-label="Порядок сортировки" />
+          </div>
+        </div>
+
+        <label className="category-edit-field">
+          <strong>Описание</strong>
+          <textarea placeholder="Описание категории" />
+        </label>
+
+        <button className="category-save-button" type="button" onClick={() => onSave(draft)}>
+          {mode === 'add' ? 'Добавить категорию' : 'Сохранить изменения'}
+        </button>
+        <button className="category-cancel-button" type="button" onClick={onCancel}>
+          Отмена
+        </button>
       </section>
     </main>
   );
@@ -2591,6 +2658,7 @@ function AppContent() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [showAfterOrderPanel, setShowAfterOrderPanel] = useState(false);
   const [orderFlow, setOrderFlow] = useState<OrderFlowState>({ step: 'done', selectedByCategory: {} });
+  const [categoryEditor, setCategoryEditor] = useState<{ mode: CategoryEditorMode; categoryId?: string }>({ mode: 'list' });
   const [localProducts, setLocalProducts] = useState<Product[]>(demoProducts);
   const [localCategories, setLocalCategories] = useState<Category[]>(demoCategories);
   const [localCabins, setLocalCabins] = useState<Cabin[]>(demoCabins);
@@ -2696,13 +2764,17 @@ function AppContent() {
 
   const settingsTitle = useMemo(() => {
     if (screen === 'settings-profile') return 'Профиль ресторана';
-    if (screen === 'settings-categories') return 'Параметры и категории';
+    if (screen === 'settings-categories') {
+      if (categoryEditor.mode === 'edit') return 'Редактировать категорию';
+      if (categoryEditor.mode === 'add') return 'Добавить категорию';
+      return 'Параметры и категории';
+    }
     if (screen === 'settings-design') return 'Дизайн приложения';
     if (screen === 'settings-stock') return 'Обновить блюда';
     if (screen === 'settings-backup') return 'Импорт и экспорт';
     if (screen === 'settings-delete') return 'Удаление каталога';
     return 'Настройки';
-  }, [screen]);
+  }, [categoryEditor.mode, screen]);
 
   if (catalogSlug !== 'mangal' && isLoading && !data) {
     return (
@@ -2833,6 +2905,15 @@ function AppContent() {
     persist(replaceCategoriesInSupabase(values));
   };
 
+  const openCategoryEditor = (mode: CategoryEditorMode, categoryId?: string) => {
+    setCategoryEditor({ mode, categoryId });
+  };
+
+  const deleteCategoryFromSettings = (categoryId: string) => {
+    saveCategories(catalog.categories.filter((category) => category.id !== categoryId));
+    setCategoryEditor({ mode: 'list' });
+  };
+
   const saveCabins = (values: Cabin[]) => {
     setLocalCabins(values);
     persist(replaceCabinsInSupabase(values));
@@ -2954,13 +3035,25 @@ function AppContent() {
       <SettingsHeader
         title={settingsTitle}
         onBack={() => {
+          if (screen === 'settings-categories' && categoryEditor.mode !== 'list') {
+            setCategoryEditor({ mode: 'list' });
+            return;
+          }
           if (screen === 'settings') {
             setScreen('home');
             return;
           }
           setScreen('settings');
         }}
-        onAction={screen === 'settings-categories' ? () => saveCategories([...catalog.categories, createCategoryDraft()]) : undefined}
+        onAction={
+          screen === 'settings-categories' && categoryEditor.mode === 'list'
+            ? () => setCategoryEditor({ mode: 'add' })
+            : screen === 'settings-categories' && categoryEditor.mode === 'edit' && categoryEditor.categoryId
+              ? () => deleteCategoryFromSettings(categoryEditor.categoryId!)
+              : undefined
+        }
+        actionLabel={categoryEditor.mode === 'edit' ? 'Удалить категорию' : 'Добавить категорию'}
+        actionIcon={categoryEditor.mode === 'edit' ? <Trash2 /> : undefined}
       />
       {screen === 'settings' && <SettingsHome onOpen={setScreen} />}
       {screen === 'settings-profile' && (
@@ -2969,11 +3062,13 @@ function AppContent() {
       {screen === 'settings-categories' && (
         <CategoriesSettings
           categories={catalog.categories}
-          cabins={catalog.cabins}
           tags={localTags}
+          products={catalog.products}
+          mode={categoryEditor.mode}
+          editingId={categoryEditor.categoryId}
+          onModeChange={(mode, categoryId) => setCategoryEditor({ mode, categoryId })}
           onChangeCategories={saveCategories}
-          onChangeCabins={saveCabins}
-          onChangeTags={saveTags}
+          onDeleteCategory={deleteCategoryFromSettings}
         />
       )}
       {screen === 'settings-design' && <DesignSettings theme={themeStore} onChange={saveTheme} />}
