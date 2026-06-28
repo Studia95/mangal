@@ -1954,7 +1954,8 @@ function CategoriesSettings({
     const normalized = {
       ...category,
       name: category.name.trim() || 'Новая категория',
-      showOnHome: category.showInOrderFlow === true ? false : true
+      showOnHome: category.showOnHome !== false,
+      showInOrderFlow: category.showInOrderFlow === true
     };
     const exists = categories.some((item) => item.id === normalized.id);
     onChangeCategories(
@@ -2090,7 +2091,10 @@ function CategoriesSettings({
                 </span>
                 <small>
                   <i />
-                  {category.showInOrderFlow === true ? 'После далее' : 'На главной'}
+                  {[
+                    category.showOnHome !== false ? 'На главной' : '',
+                    category.showInOrderFlow === true ? 'Дополнительное' : ''
+                  ].filter(Boolean).join(' / ') || 'Скрыта'}
                 </small>
                 <em>{productCountFor(category.id)} блюд</em>
               </span>
@@ -2131,14 +2135,6 @@ function CategoryEditScreen({
   }, [category, mode]);
 
   const selectedTags = tags.slice(0, mode === 'edit' ? 2 : 0);
-  const isSecondary = draft.showInOrderFlow === true;
-  const updateDisplay = (displayType: 'main' | 'secondary') => {
-    setDraft((current) => ({
-      ...current,
-      showOnHome: displayType === 'main',
-      showInOrderFlow: displayType === 'secondary'
-    }));
-  };
 
   return (
     <main className="settings-screen category-edit-screen">
@@ -2252,12 +2248,20 @@ function CategoryEditScreen({
         <div className="category-edit-field">
           <strong>Отображение категории</strong>
           <label className="category-edit-radio">
-            <input type="radio" checked={!isSecondary} onChange={() => updateDisplay('main')} />
+            <input
+              type="checkbox"
+              checked={draft.showOnHome !== false}
+              onChange={(event) => setDraft({ ...draft, showOnHome: event.target.checked })}
+            />
             На главной
           </label>
           <label className="category-edit-radio">
-            <input type="radio" checked={isSecondary} onChange={() => updateDisplay('secondary')} />
-            После "Показать ещё"
+            <input
+              type="checkbox"
+              checked={draft.showInOrderFlow === true}
+              onChange={(event) => setDraft({ ...draft, showInOrderFlow: event.target.checked })}
+            />
+            Дополнительное
           </label>
         </div>
 
