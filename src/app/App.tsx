@@ -97,7 +97,7 @@ type SettingsScreen = 'settings' | 'settings-profile' | 'settings-categories' | 
 type Screen = 'home' | 'catalog' | 'drinks' | 'product' | 'checkout' | SettingsScreen;
 type ProductFlag = 'is_popular' | 'is_hidden';
 type CategoryEditorMode = 'list' | 'edit' | 'add';
-type SettingsCatalogTab = 'templates' | 'tags' | 'cabins' | 'categories';
+type SettingsCatalogTab = 'tags' | 'cabins' | 'categories';
 type CabinEditorMode = 'list' | 'edit' | 'add';
 type OrderFlowState = {
   step: 'category' | 'done';
@@ -189,6 +189,17 @@ const createCategoryDraft = (name = 'Новая категория'): Category =
     showOnHome: true,
     showInOrderFlow: false,
     image: demoCategories[0]?.image ?? ''
+  };
+};
+
+const createTagDraft = (name = 'Новая метка'): CatalogTag => {
+  const id = makeId('tag');
+  return {
+    id,
+    slug: id,
+    name,
+    icon: '#',
+    color: '#7c3aed'
   };
 };
 
@@ -1951,6 +1962,7 @@ function CategoriesSettings({
   onModeChange,
   onChangeCategories,
   onChangeCabins,
+  onChangeTags,
   onDeleteCategory
 }: {
   categories: Category[];
@@ -1967,6 +1979,7 @@ function CategoriesSettings({
   onModeChange: (mode: CategoryEditorMode, categoryId?: string) => void;
   onChangeCategories: (categories: Category[]) => void;
   onChangeCabins: (cabins: Cabin[]) => void;
+  onChangeTags: (tags: CatalogTag[]) => void;
   onDeleteCategory: (categoryId: string) => void;
 }) {
   const move = (index: number, direction: -1 | 1) => {
@@ -2018,9 +2031,21 @@ function CategoriesSettings({
     onChangeCabins(exists ? cabins.map((item) => (item.id === normalized.id ? normalized : item)) : [...cabins, normalized]);
     onCabinModeChange('list');
   };
+  const saveTag = (tag: CatalogTag) => {
+    const normalized = {
+      ...tag,
+      name: tag.name.trim() || 'Новая метка',
+      icon: tag.icon.trim() || '#',
+      color: tag.color || '#7c3aed'
+    };
+    const exists = tags.some((item) => item.id === normalized.id);
+    onChangeTags(exists ? tags.map((item) => (item.id === normalized.id ? normalized : item)) : [...tags, normalized]);
+  };
+  const deleteTag = (tagId: string) => {
+    onChangeTags(tags.filter((tag) => tag.id !== tagId));
+  };
 
   const tabs = [
-    ['templates', ClipboardList, 'Шаблоны'],
     ['tags', Tags, 'Метки'],
     ['cabins', Store, 'Кабинки'],
     ['categories', Tags, 'Категории']
@@ -2036,6 +2061,17 @@ function CategoriesSettings({
       ))}
     </nav>
   );
+
+  if (activeTab === 'tags') {
+    return (
+      <TagsSettingsScreen
+        tags={tags}
+        onSave={saveTag}
+        onDelete={deleteTag}
+        renderTabs={renderTabs}
+      />
+    );
+  }
 
   if (activeTab === 'cabins') {
     if (cabinMode === 'add' || cabinMode === 'edit') {
@@ -2140,6 +2176,113 @@ function CategoriesSettings({
           <Plus />
           Добавить категорию
         </button>
+      </section>
+    </main>
+  );
+}
+
+function TagsSettingsScreen({
+  tags,
+  onSave,
+  onDelete,
+  renderTabs
+}: {
+  tags: CatalogTag[];
+  onSave: (tag: CatalogTag) => void;
+  onDelete: (tagId: string) => void;
+  renderTabs: () => JSX.Element;
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<CatalogTag>(() => createTagDraft());
+  const editingTag = editingId ? tags.find((tag) => tag.id === editingId) : undefined;
+
+  useEffect(() => {
+    if (editingTag) {
+      setDraft(editingTag);
+      return;
+    }
+    if (!editingId) {
+      setDraft(createTagDraft());
+    }
+  }, [editingId, editingTag]);
+
+  const resetDraft = () => {
+    setEditingId(null);
+    setDraft(createTagDraft());
+  };
+
+  const saveDraft = () => {
+    onSave(draft);
+    resetDraft();
+  };
+
+  return (
+    <main className="settings-screen category-settings-screen">
+      {renderTabs()}
+      <section className="category-settings-card tag-settings-card">
+        <div className="category-settings-tip">
+          <Info />
+          <span>Метки помогают быстро выделять блюда и категории: хит, новинка, популярное или любой ваш статус.</span>
+        </div>
+
+        <div className="tag-edit-panel">
+          <label className="tag-edit-field tag-edit-field--name">
+            <strong>Название</strong>
+            <input
+              value={draft.name}
+              placeholder="Например: Новинка"
+              onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+            />
+          </label>
+          <label className="tag-edit-field tag-edit-field--icon">
+            <strong>Иконка</strong>
+            <input
+              value={draft.icon}
+              maxLength={6}
+              placeholder="#"
+              onChange={(event) => setDraft({ ...draft, icon: event.target.value })}
+            />
+          </label>
+          <label className="tag-edit-field tag-edit-field--color">
+            <strong>Цвет</strong>
+            <input
+              type="color"
+              value={draft.color}
+              onChange={(event) => setDraft({ ...draft, color: event.target.value })}
+              aria-label="Цвет метки"
+            />
+          </label>
+          <button className="tag-save-button" type="button" onClick={saveDraft}>
+            {editingId ? 'Сохранить' : 'Добавить'}
+          </button>
+          {editingId && (
+            <button className="tag-cancel-button" type="button" onClick={resetDraft}>
+              Отмена
+            </button>
+          )}
+        </div>
+
+        <div className="tag-list">
+          {tags.map((tag) => (
+            <article className="tag-list-card" key={tag.id}>
+              <button className="tag-list-card__main" type="button" onClick={() => setEditingId(tag.id)}>
+                <span className="tag-preview" style={{ color: tag.color, backgroundColor: `${tag.color}1a` }}>
+                  {tag.icon}
+                </span>
+                <span>
+                  <strong>{tag.name}</strong>
+                  <small>{tag.color}</small>
+                </span>
+              </button>
+              <button className="tag-icon-button" type="button" onClick={() => setEditingId(tag.id)} aria-label={`Редактировать ${tag.name}`}>
+                <Edit3 />
+              </button>
+              <button className="tag-icon-button tag-icon-button--danger" type="button" onClick={() => onDelete(tag.id)} aria-label={`Удалить ${tag.name}`}>
+                <Trash2 />
+              </button>
+            </article>
+          ))}
+        </div>
       </section>
     </main>
   );
@@ -3527,6 +3670,7 @@ function AppContent() {
           onModeChange={(mode, categoryId) => setCategoryEditor({ mode, categoryId })}
           onChangeCategories={saveCategories}
           onChangeCabins={saveCabins}
+          onChangeTags={saveTags}
           onDeleteCategory={deleteCategoryFromSettings}
         />
       )}
