@@ -20,6 +20,8 @@ export const themeSettings: ThemeSettings = {
   restaurant_id: restaurant.id,
   background_type: 'color',
   background_color: '#070809',
+  background_gradient_from: '#070809',
+  background_gradient_to: '#1f2937',
   background_image_url: '',
   card_color: '#121416',
   product_card_color: '#121416',

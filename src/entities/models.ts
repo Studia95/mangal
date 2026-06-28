@@ -1,4 +1,4 @@
-export type BackgroundType = 'color' | 'image';
+export type BackgroundType = 'color' | 'gradient' | 'image';
 export type ButtonStyle = 'filled' | 'outline';
 export type HeaderStyle = 'centered' | 'compact';
 export type OrderMode = 'hall' | 'takeaway';
@@ -8,6 +8,8 @@ export type ThemeSettings = {
   restaurant_id: string;
   background_type: BackgroundType;
   background_color: string;
+  background_gradient_from?: string;
+  background_gradient_to?: string;
   background_image_url: string;
   card_color: string;
   product_card_color?: string;
@@ -54,6 +56,7 @@ export type Category = {
 
 export type CatalogTag = {
   id: string;
+  slug?: string;
   name: string;
   icon: string;
   color: string;

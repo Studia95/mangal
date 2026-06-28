@@ -30,6 +30,51 @@ const normalizeRestaurant = (value?: Restaurant | null): Restaurant => ({
   mapLink: value?.mapLink ?? ''
 });
 
+const gradientMarkerPrefix = 'gradient:';
+
+const hydrateTheme = (value?: Partial<ThemeSettings> | null): ThemeSettings => {
+  const next = { ...themeSettings, ...(value ?? {}) };
+  if (next.background_image_url?.startsWith(gradientMarkerPrefix)) {
+    return {
+      ...next,
+      background_type: 'gradient',
+      background_gradient_from: next.background_color,
+      background_gradient_to: next.background_image_url.slice(gradientMarkerPrefix.length) || next.background_color,
+      background_image_url: ''
+    };
+  }
+  return {
+    ...next,
+    background_gradient_from: next.background_gradient_from ?? next.background_color,
+    background_gradient_to: next.background_gradient_to ?? next.accent_secondary ?? next.background_color
+  };
+};
+
+const themeToLegacyRow = (value: ThemeSettings) => {
+  const {
+    background_gradient_from,
+    background_gradient_to,
+    background_type,
+    background_color,
+    background_image_url,
+    ...rest
+  } = value;
+  if (background_type === 'gradient') {
+    return {
+      ...rest,
+      background_type: 'color',
+      background_color: background_gradient_from ?? background_color,
+      background_image_url: `${gradientMarkerPrefix}${background_gradient_to ?? background_color}`
+    };
+  }
+  return {
+    ...rest,
+    background_type,
+    background_color,
+    background_image_url
+  };
+};
+
 type PlatformCatalogRow = {
   id: string;
   slug: string;
@@ -272,7 +317,7 @@ export async function loadCatalog(catalogSlug?: string) {
         .select('product_id, url, sort_order')
         .eq('catalog_id', catalog.id)
         .order('sort_order'),
-      supabase.from('tags').select('id, name, icon, color').eq('catalog_id', catalog.id).order('sort_order'),
+      supabase.from('tags').select('id, slug, name, icon, color').eq('catalog_id', catalog.id).order('sort_order'),
       supabase
         .from('bookable_resources')
         .select('id, title, capacity, image_url, is_active')
@@ -295,7 +340,7 @@ export async function loadCatalog(catalogSlug?: string) {
       ),
       cabins: ((cabinsResult.data ?? []) as PlatformCabinRow[]).map(mapPlatformCabin),
       tags: (tagsResult.data ?? []) as CatalogTag[],
-      theme: { ...themeSettings, ...((themeResult.data?.settings as Partial<ThemeSettings> | undefined) ?? {}) },
+      theme: hydrateTheme(themeResult.data?.settings as Partial<ThemeSettings> | undefined),
       source: 'supabase' as const
     };
   }
@@ -319,7 +364,7 @@ export async function loadCatalog(catalogSlug?: string) {
     products: productsResult.data ?? products,
     cabins: cabinsResult.data ?? cabins,
     tags: tagsResult.data ?? [],
-    theme: themeResult.data ?? themeSettings,
+    theme: hydrateTheme(themeResult.data),
     source: 'supabase' as const
   };
 }
@@ -489,11 +534,11 @@ export async function saveThemeToSupabase(value: ThemeSettings) {
     );
     return;
   }
-  await throwOnError(supabase.from('theme_settings').upsert(value, { onConflict: 'id' }));
+  await throwOnError(supabase.from('theme_settings').upsert(themeToLegacyRow(value), { onConflict: 'id' }));
 }
 
 export async function replaceCategoriesInSupabase(values: Category[]) {
-  if (!supabase) return;
+  if (!supabase) return values;
   if (activePlatformCatalogId) {
     const slugs = values.map((value) => value.slug || createSlug(value.name || value.id));
     const rows = values.map((value, index) => ({
@@ -506,15 +551,22 @@ export async function replaceCategoriesInSupabase(values: Category[]) {
       icon: value.icon,
       sort_order: index
     }));
+    let savedRows: Array<{ id: string; slug: string }> = [];
     if (rows.length > 0) {
-      await throwOnError(supabase.from('categories').upsert(rows, { onConflict: 'catalog_id,slug' }));
+      savedRows = ((await throwOnError(
+        supabase.from('categories').upsert(rows, { onConflict: 'catalog_id,slug' }).select('id, slug')
+      )) ?? []) as Array<{ id: string; slug: string }>;
       await throwOnError(
         supabase.from('categories').delete().eq('catalog_id', activePlatformCatalogId).not('slug', 'in', postgrestList(slugs))
       );
     } else {
       await throwOnError(supabase.from('categories').delete().eq('catalog_id', activePlatformCatalogId));
     }
-    return;
+    const idsBySlug = new Map(savedRows.map((row) => [row.slug, row.id]));
+    return values.map((value) => {
+      const slug = value.slug || createSlug(value.name || value.id);
+      return { ...value, id: idsBySlug.get(slug) ?? value.id, slug };
+    });
   }
   const ids = values.map((value) => value.id);
   await throwOnError(
@@ -525,32 +577,54 @@ export async function replaceCategoriesInSupabase(values: Category[]) {
   } else {
     await throwOnError(supabase.from('category').delete().neq('id', ''));
   }
+  return values;
 }
 
 export async function replaceTagsInSupabase(values: CatalogTag[]) {
-  if (!supabase) return;
+  if (!supabase) return values;
   if (activePlatformCatalogId) {
+    const slugs = values.map((value) => value.slug || createSlug(value.name || value.id));
     const rows = values.map((value, index) => ({
       ...(uuidPattern.test(value.id) ? { id: value.id } : {}),
       catalog_id: activePlatformCatalogId,
       name: value.name,
-      slug: value.id.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || crypto.randomUUID(),
+      slug: value.slug || createSlug(value.name || value.id),
       icon: value.icon,
       color: value.color,
       sort_order: index
     }));
+    let savedRows: Array<{ id: string; slug: string }> = [];
     if (rows.length > 0) {
-      await throwOnError(supabase.from('tags').upsert(rows, { onConflict: 'id' }));
+      savedRows = ((await throwOnError(
+        supabase.from('tags').upsert(rows, { onConflict: 'catalog_id,slug' }).select('id, slug')
+      )) ?? []) as Array<{ id: string; slug: string }>;
+      await throwOnError(
+        supabase.from('tags').delete().eq('catalog_id', activePlatformCatalogId).not('slug', 'in', postgrestList(slugs))
+      );
+    } else {
+      await throwOnError(supabase.from('tags').delete().eq('catalog_id', activePlatformCatalogId));
     }
-    return;
+    const idsBySlug = new Map(savedRows.map((row) => [row.slug, row.id]));
+    return values.map((value) => {
+      const slug = value.slug || createSlug(value.name || value.id);
+      return { ...value, id: idsBySlug.get(slug) ?? value.id, slug };
+    });
   }
   const ids = values.map((value) => value.id);
-  await throwOnError(supabase.from('catalog_tag').upsert(values.map((value, index) => ({ ...value, sort_order: index })), { onConflict: 'id' }));
+  await throwOnError(
+    supabase
+      .from('catalog_tag')
+      .upsert(
+        values.map(({ slug: _slug, ...value }, index) => ({ ...value, sort_order: index })),
+        { onConflict: 'id' }
+      )
+  );
   if (ids.length > 0) {
     await throwOnError(supabase.from('catalog_tag').delete().not('id', 'in', postgrestList(ids)));
   } else {
     await throwOnError(supabase.from('catalog_tag').delete().neq('id', ''));
   }
+  return values;
 }
 
 export async function replaceCabinsInSupabase(values: Cabin[]) {

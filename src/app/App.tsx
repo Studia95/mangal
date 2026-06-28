@@ -113,6 +113,8 @@ type FlowAction = {
 type CatalogDesignExport = {
   theme?: 'light' | 'dark';
   backgroundColor?: string;
+  backgroundGradientFrom?: string;
+  backgroundGradientTo?: string;
   primaryColor?: string;
   accentColor?: string;
   cardColor?: string;
@@ -261,6 +263,8 @@ const createCatalogBackupPayload = ({
   design: {
     theme: theme.background_color === '#f7f3ec' ? 'light' : 'dark',
     backgroundColor: theme.background_color,
+    backgroundGradientFrom: theme.background_gradient_from,
+    backgroundGradientTo: theme.background_gradient_to,
     primaryColor: theme.accent_color,
     accentColor: theme.accent_secondary,
     cardColor: theme.card_color,
@@ -415,6 +419,8 @@ const downloadCatalogZip = async (payload: CatalogBackupPayload) => {
 const darkThemePreset: Partial<ThemeSettings> = {
   background_type: 'color',
   background_color: '#070809',
+  background_gradient_from: '#070809',
+  background_gradient_to: '#1f2937',
   background_image_url: '',
   card_color: '#121416',
   product_card_color: '#121416',
@@ -435,6 +441,8 @@ const darkThemePreset: Partial<ThemeSettings> = {
 const lightThemePreset: Partial<ThemeSettings> = {
   background_type: 'color',
   background_color: '#f7f3ec',
+  background_gradient_from: '#f7f3ec',
+  background_gradient_to: '#ffffff',
   background_image_url: '',
   card_color: '#ffffff',
   product_card_color: '#ffffff',
@@ -458,6 +466,11 @@ const readableTextFor = (color: string) => {
   const [r, g, b] = [0, 2, 4].map((start) => Number.parseInt(hex.slice(start, start + 2), 16));
   const brightness = (r * 299 + g * 587 + b * 114) / 1000;
   return brightness > 160 ? '#181510' : '#f8f5ef';
+};
+
+const normalizeHexColor = (value: string) => {
+  const hex = value.trim().replace(/^#/, '');
+  return /^[0-9a-f]{6}$/i.test(hex) ? `#${hex.toLowerCase()}` : null;
 };
 
 const iconMap = {
@@ -527,8 +540,10 @@ const categoryIconOptions = [
 ] as const;
 
 function applyTheme(theme: ThemeSettings) {
+  const gradientFrom = theme.background_gradient_from ?? theme.background_color;
+  const gradientTo = theme.background_gradient_to ?? theme.accent_secondary ?? theme.background_color;
   return {
-    '--bg': theme.background_color,
+    '--bg': theme.background_type === 'gradient' ? gradientFrom : theme.background_color,
     '--card': theme.card_color,
     '--product-card': theme.product_card_color ?? theme.card_color,
     '--product-card-text': theme.product_card_text_color ?? theme.text_primary ?? '#181510',
@@ -552,7 +567,9 @@ function applyTheme(theme: ThemeSettings) {
         : 'transparent',
     '--primary-text': theme.button_style === 'filled' ? '#1b1408' : theme.accent_secondary,
     backgroundImage:
-      theme.background_type === 'image' && theme.background_image_url
+      theme.background_type === 'gradient'
+        ? `linear-gradient(180deg, ${gradientFrom} 0%, ${gradientTo} 100%)`
+        : theme.background_type === 'image' && theme.background_image_url
         ? `linear-gradient(rgba(5, 6, 7, 0.78), rgba(5, 6, 7, 0.92)), url(${theme.background_image_url})`
         : undefined
   } as React.CSSProperties;
@@ -2469,28 +2486,126 @@ function ColorSetting({
   palette: string[];
   onChange: (color: string) => void;
 }) {
+  const normalizedValue = normalizeHexColor(value) ?? '#000000';
+  const [draft, setDraft] = useState(normalizedValue);
+
+  useEffect(() => {
+    setDraft(normalizedValue);
+  }, [normalizedValue]);
+
+  const updateColor = (color: string) => {
+    const normalized = normalizeHexColor(color);
+    if (!normalized) return;
+    setDraft(normalized);
+    onChange(normalized);
+  };
+
   return (
     <div className="color-setting">
       <div className="color-setting__head">
         <h2>{label}</h2>
         <label>
-          <span style={{ background: value }} />
-          <input type="color" value={value} onChange={(event) => onChange(event.target.value)} aria-label={label} />
+          <span style={{ background: normalizedValue }} />
+          <input type="color" value={normalizedValue} onChange={(event) => updateColor(event.target.value)} aria-label={label} />
         </label>
       </div>
+      <input
+        className="hex-input"
+        value={draft}
+        inputMode="text"
+        maxLength={7}
+        onBlur={() => setDraft(normalizedValue)}
+        onChange={(event) => {
+          const next = event.target.value.startsWith('#') ? event.target.value : `#${event.target.value}`;
+          setDraft(next);
+          const normalized = normalizeHexColor(next);
+          if (normalized) onChange(normalized);
+        }}
+        aria-label={`${label}: HEX`}
+      />
       <div className="swatches">
         {palette.map((color) => (
           <button
-            className={value.toLowerCase() === color.toLowerCase() ? 'swatch is-active' : 'swatch'}
+            className={normalizedValue.toLowerCase() === color.toLowerCase() ? 'swatch is-active' : 'swatch'}
             style={{ background: color }}
             type="button"
             key={color}
-            onClick={() => onChange(color)}
+            onClick={() => updateColor(color)}
             aria-label={color}
           />
         ))}
       </div>
     </div>
+  );
+}
+
+function BackgroundSetting({
+  theme,
+  palette,
+  onChange
+}: {
+  theme: ThemeSettings;
+  palette: string[];
+  onChange: (patch: Partial<ThemeSettings>) => void;
+}) {
+  const gradientFrom = theme.background_gradient_from ?? theme.background_color;
+  const gradientTo = theme.background_gradient_to ?? theme.accent_secondary ?? theme.background_color;
+  const setMode = (backgroundType: ThemeSettings['background_type']) => {
+    if (backgroundType === 'color') {
+      onChange({ background_type: 'color', background_color: gradientFrom, background_image_url: '' });
+      return;
+    }
+    if (backgroundType === 'gradient') {
+      onChange({
+        background_type: 'gradient',
+        background_color: gradientFrom,
+        background_gradient_from: gradientFrom,
+        background_gradient_to: gradientTo,
+        background_image_url: ''
+      });
+      return;
+    }
+    onChange({ background_type: 'image' });
+  };
+
+  return (
+    <section className="background-setting">
+      <div className="background-mode">
+        <button className={theme.background_type === 'color' ? 'is-active' : ''} type="button" onClick={() => setMode('color')}>
+          Заливка
+        </button>
+        <button className={theme.background_type === 'gradient' ? 'is-active' : ''} type="button" onClick={() => setMode('gradient')}>
+          Градиент
+        </button>
+        <button className={theme.background_type === 'image' ? 'is-active' : ''} type="button" onClick={() => setMode('image')}>
+          Изображение
+        </button>
+      </div>
+
+      {theme.background_type === 'gradient' ? (
+        <>
+          <ColorSetting
+            label="Начальный цвет фона"
+            value={gradientFrom}
+            palette={palette}
+            onChange={(color) => onChange({ background_type: 'gradient', background_color: color, background_gradient_from: color })}
+          />
+          <ColorSetting
+            label="Конечный цвет фона"
+            value={gradientTo}
+            palette={palette}
+            onChange={(color) => onChange({ background_type: 'gradient', background_gradient_to: color })}
+          />
+        </>
+      ) : (
+        <ColorSetting
+          label="Фон приложения"
+          value={theme.background_color}
+          palette={palette}
+          onChange={(color) => onChange({ background_type: 'color', background_color: color, background_image_url: '' })}
+        />
+      )}
+    </section>
   );
 }
 
@@ -2551,7 +2666,7 @@ function DesignSettings({ theme, onChange }: { theme: ThemeSettings; onChange: (
           </button>
         )}
 
-        <ColorSetting label="Фон приложения" value={theme.background_color} palette={backgroundColors} onChange={(color) => onChange({ background_color: color })} />
+        <BackgroundSetting theme={theme} palette={backgroundColors} onChange={onChange} />
         <ColorSetting label="Основной цвет" value={theme.accent_color} palette={primaryColors} onChange={(color) => onChange({ accent_color: color })} />
         <ColorSetting label="Цвет акцента" value={theme.accent_secondary} palette={accentColors} onChange={(color) => onChange({ accent_secondary: color })} />
         <ColorSetting label="Цвет карточек" value={theme.card_color} palette={cardColors} onChange={(color) => onChange({ card_color: color })} />
@@ -2827,22 +2942,21 @@ function DesignEditor({
             </div>
             {editor === 'design' ? (
           <div className="theme-form">
+            <BackgroundSetting theme={theme} palette={['#070809', '#101419', '#f7f3ec', '#f8fafc', '#fff7ed', '#f1f5f9']} onChange={updateTheme} />
             {[
-              ['background_color', 'Фон'],
               ['text_primary', 'Текст'],
               ['text_secondary', 'Вторичный текст'],
               ['card_color', 'Карточки'],
               ['accent_color', 'Акцент'],
               ['accent_secondary', 'Акцент 2']
             ].map(([key, label]) => (
-              <label key={key}>
-                {label}
-                <input
-                  type="color"
-                  value={String(theme[key as keyof ThemeSettings])}
-                  onChange={(event) => updateTheme({ [key]: event.target.value })}
-                />
-              </label>
+              <ColorSetting
+                key={key}
+                label={label}
+                value={String(theme[key as keyof ThemeSettings])}
+                palette={['#e8a23a', '#ffd082', '#f8f5ef', '#ffffff', '#181510', '#111827']}
+                onChange={(color) => updateTheme({ [key]: color })}
+              />
             ))}
             <label>
               Радиус карточек
@@ -2960,8 +3074,10 @@ function AppContent() {
   const items = useCartStore((state) => state.items);
   const clearCart = useCartStore((state) => state.clear);
   const cartCount = selectCartCount(items);
-  const persist = (action: Promise<void>) => {
-    void action.catch((error) => {
+  const persist = <T,>(action: Promise<T>, onSuccess?: (value: T) => void) => {
+    void action.then((value) => {
+      onSuccess?.(value);
+    }).catch((error) => {
       console.error('Supabase save failed', error);
       toast.error('Не удалось сохранить изменения в Supabase');
     });
@@ -3198,7 +3314,7 @@ function AppContent() {
 
   const saveCategories = (values: Category[]) => {
     setLocalCategories(values);
-    persist(replaceCategoriesInSupabase(values));
+    persist(replaceCategoriesInSupabase(values), setLocalCategories);
   };
 
   const openCategoryEditor = (mode: CategoryEditorMode, categoryId?: string) => {
@@ -3222,7 +3338,7 @@ function AppContent() {
 
   const saveTags = (values: CatalogTag[]) => {
     setLocalTags(values);
-    persist(replaceTagsInSupabase(values));
+    persist(replaceTagsInSupabase(values), setLocalTags);
   };
 
   const saveTheme = (patch: Partial<ThemeSettings>) => {
@@ -3443,7 +3559,10 @@ function AppContent() {
             );
             if (payload.design) {
               saveTheme({
+                background_type: payload.design.backgroundGradientFrom || payload.design.backgroundGradientTo ? 'gradient' : themeStore.background_type,
                 background_color: payload.design.backgroundColor ?? (payload.design.theme === 'light' ? '#f7f3ec' : '#070809'),
+                background_gradient_from: payload.design.backgroundGradientFrom ?? payload.design.backgroundColor ?? themeStore.background_gradient_from,
+                background_gradient_to: payload.design.backgroundGradientTo ?? themeStore.background_gradient_to,
                 card_color: payload.design.cardColor ?? (payload.design.cardStyle === 'light' ? '#ffffff' : '#121416'),
                 product_card_color: payload.design.productCardColor ?? themeStore.product_card_color,
                 product_card_text_color: payload.design.productCardTextColor ?? themeStore.product_card_text_color,

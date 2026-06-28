@@ -3601,6 +3601,32 @@ a {
   gap: 10px;
 }
 
+.background-setting {
+  display: grid;
+  gap: 14px;
+}
+
+.background-mode {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.background-mode button {
+  min-height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-weight: 800;
+}
+
+.background-mode button.is-active {
+  border-color: var(--accent);
+  background: var(--primary-bg);
+  color: var(--primary-text);
+}
+
 .color-setting__head {
   display: flex;
   align-items: center;
@@ -3629,6 +3655,18 @@ a {
   width: 100%;
   height: 100%;
   opacity: 0;
+}
+
+.hex-input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  padding: 0 12px;
+  font: 800 0.92rem/1 var(--font, inherit);
+  text-transform: uppercase;
 }
 
 .swatches {
