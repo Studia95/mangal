@@ -64,6 +64,22 @@ alter table public.clients add column if not exists admin_consent_confirmed bool
 alter table public.clients add column if not exists admin_consent_confirmed_at timestamptz;
 alter table public.clients add column if not exists admin_consent_actor_id uuid references auth.users(id) on delete set null;
 
+create or replace function public.sync_client_catalog_member()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.catalog_members (catalog_id, user_id, role)
+  values (new.catalog_id, new.owner_user_id, 'owner'::public.catalog_role)
+  on conflict (catalog_id, user_id) do update set
+    role = excluded.role;
+
+  return new;
+end;
+$$;
+
 create table if not exists public.client_subscriptions (
   id uuid primary key default gen_random_uuid(),
   client_id uuid not null references public.clients(id) on delete cascade,
@@ -89,6 +105,10 @@ create index if not exists client_subscriptions_status_ends_idx on public.client
 drop trigger if exists clients_updated_at on public.clients;
 create trigger clients_updated_at before update on public.clients
 for each row execute function public.set_updated_at();
+
+drop trigger if exists clients_catalog_member_sync on public.clients;
+create trigger clients_catalog_member_sync after insert or update of owner_user_id, catalog_id on public.clients
+for each row execute function public.sync_client_catalog_member();
 
 drop trigger if exists client_subscriptions_updated_at on public.client_subscriptions;
 create trigger client_subscriptions_updated_at before update on public.client_subscriptions

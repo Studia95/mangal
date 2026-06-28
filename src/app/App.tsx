@@ -474,6 +474,14 @@ const normalizeHexColor = (value: string) => {
   return /^[0-9a-f]{6}$/i.test(hex) ? `#${hex.toLowerCase()}` : null;
 };
 
+const errorMessageFor = (error: unknown) => {
+  if (error && typeof error === 'object') {
+    const value = error as { message?: unknown; details?: unknown; hint?: unknown };
+    return [value.message, value.details, value.hint].filter((item): item is string => typeof item === 'string' && item.trim().length > 0).join(' ');
+  }
+  return error instanceof Error ? error.message : '';
+};
+
 const iconMap = {
   pot: ChefHat,
   chef: ChefHat,
@@ -575,6 +583,14 @@ function applyTheme(theme: ThemeSettings) {
         : undefined
   } as React.CSSProperties;
 }
+
+const settingsAccentStyle = {
+  '--accent': '#7c3aed',
+  '--accent-2': '#a78bfa',
+  '--primary': '#7c3aed',
+  '--primary-bg': 'linear-gradient(135deg, #a78bfa, #7c3aed)',
+  '--primary-text': '#ffffff'
+} as React.CSSProperties;
 
 function Logo({
   compact = false,
@@ -3080,7 +3096,8 @@ function AppContent() {
       onSuccess?.(value);
     }).catch((error) => {
       console.error('Supabase save failed', error);
-      toast.error('Не удалось сохранить изменения в Supabase');
+      const message = errorMessageFor(error);
+      toast.error(message ? `Не удалось сохранить: ${message}` : 'Не удалось сохранить изменения в Supabase');
     });
   };
 
@@ -3592,12 +3609,17 @@ function AppContent() {
     <div
       className={
         screen === 'settings-stock'
-          ? 'app-shell app-shell--stock'
+          ? 'app-shell app-shell--settings app-shell--stock'
           : screen === 'settings-categories'
-            ? 'app-shell app-shell--category-settings'
-            : 'app-shell'
+            ? 'app-shell app-shell--settings app-shell--category-settings'
+            : screen.startsWith('settings')
+              ? 'app-shell app-shell--settings'
+              : 'app-shell'
       }
-      style={applyTheme(themeStore)}
+      style={{
+        ...applyTheme(themeStore),
+        ...(screen.startsWith('settings') ? settingsAccentStyle : {})
+      }}
     >
       <Toaster richColors position="top-center" />
       {screen.startsWith('settings') ? (
